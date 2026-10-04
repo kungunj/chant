@@ -81,7 +81,7 @@ export function ProductForm({ product }: { product?: Product }) {
       <div>
         <label className="label" htmlFor="photos">Add photos</label>
         <input id="photos" name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple className="input" />
-        <p className="mt-1 text-xs text-stone-500">Up to 8 photos, 8 MB each. Show labels and part numbers clearly.</p>
+        <p className="mt-1 text-xs text-stone-500">Up to 8 photos, 5 MB each. Show labels and part numbers clearly.</p>
       </div>
       <details className="text-sm">
         <summary className="cursor-pointer text-stone-600">Or paste photo links</summary>

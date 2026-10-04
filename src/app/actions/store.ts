@@ -99,7 +99,7 @@ export async function saveProduct(_: FormState, formData: FormData): Promise<For
   if (kept.length + files.length + links.length > MAX_PHOTOS) return { error: `A listing can have at most ${MAX_PHOTOS} photos` };
   const uploaded: string[] = [];
   for (const file of files) {
-    if (file.size > MAX_PHOTO_BYTES) return { error: `${file.name} is larger than 8 MB` };
+    if (file.size > MAX_PHOTO_BYTES) return { error: `${file.name} is larger than 5 MB` };
     const bytes = new Uint8Array(await file.arrayBuffer());
     const type = sniffMimeType(bytes);
     if (!type || type === "application/pdf") return { error: `${file.name} is not a JPG, PNG or WebP photo` };

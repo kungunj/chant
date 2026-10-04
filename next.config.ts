@@ -2,8 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {
-    // Sellers upload up to four ID documents of 5 MB each in one form.
-    serverActions: { bodySizeLimit: "21mb" },
+    // Largest forms: 8 product photos or 4 ID documents, 5 MB each.
+    serverActions: { bodySizeLimit: "42mb" },
   },
 };
 

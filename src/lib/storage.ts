@@ -50,7 +50,7 @@ export async function deletePrivateFile(key: string) {
 }
 
 /** Product photos: resized to at most 1600px and re-encoded as WebP, which also strips EXIF/GPS data. */
-export const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
+export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 export async function saveProductPhoto(bytes: Uint8Array): Promise<string> {
   const sharp = (await import("sharp")).default;
