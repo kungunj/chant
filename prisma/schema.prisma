@@ -1,0 +1,201 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  BUYER
+  TECHNICIAN
+  ADMIN
+}
+
+enum DeviceCategory {
+  LAPTOP
+  DESKTOP
+  PHONE
+  TV
+  RADIO
+  AUDIO
+  CAR
+  APPLIANCE
+  OTHER
+}
+
+enum Condition {
+  NEW_SPARE
+  USED_WORKING
+  USED_FOR_PARTS
+  REFURBISHED
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum Courier {
+  POSTA_KENYA
+  FARGO_COURIER
+  OTHER
+}
+
+enum ShipmentStatus {
+  AWAITING_PICKUP
+  IN_TRANSIT
+  ARRIVED_AT_BRANCH
+  OUT_FOR_DELIVERY
+  DELIVERED
+  RETURNED
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  phone        String?
+  passwordHash String
+  role         Role      @default(BUYER)
+  createdAt    DateTime  @default(now())
+  store        Store?
+  orders       Order[]   @relation("BuyerOrders")
+  payments     Payment[]
+}
+
+model Store {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  description String?
+  location    String?
+  ownerId     String    @unique
+  owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  products    Product[]
+  orders      Order[]
+  createdAt   DateTime  @default(now())
+}
+
+model Product {
+  id            String         @id @default(cuid())
+  storeId       String
+  store         Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  title         String
+  /// Manufacturer part / product number, e.g. "BN44-00807A" or "L14M4P23"
+  partNumber    String?
+  /// partNumber upper-cased with spaces, dashes, dots and slashes removed, for forgiving search
+  partNumberKey String?
+  brand         String?
+  modelName     String?
+  category      DeviceCategory
+  condition     Condition
+  description   String?
+  /// Price in whole Kenya shillings
+  priceKes      Int
+  stock         Int            @default(1)
+  imageUrls     String[]
+  /// Soft delete so that past orders keep their product reference
+  deletedAt     DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  orderItems    OrderItem[]
+
+  @@index([storeId])
+  @@index([partNumberKey])
+  @@index([category])
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  buyerId         String
+  buyer           User        @relation("BuyerOrders", fields: [buyerId], references: [id])
+  storeId         String
+  store           Store       @relation(fields: [storeId], references: [id])
+  status          OrderStatus @default(PENDING_PAYMENT)
+  totalKes        Int
+  shippingName    String
+  shippingPhone   String
+  shippingAddress String
+  shippingTown    String
+  courier         Courier
+  paymentId       String?
+  payment         Payment?    @relation(fields: [paymentId], references: [id])
+  items           OrderItem[]
+  shipment        Shipment?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([buyerId])
+  @@index([storeId])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  /// Snapshot of title and price at time of purchase
+  title     String
+  priceKes  Int
+  quantity  Int
+}
+
+/// One M-Pesa STK Push request. A single checkout can pay for orders from several stores.
+model Payment {
+  id                String        @id @default(cuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id])
+  amountKes         Int
+  phone             String
+  status            PaymentStatus @default(PENDING)
+  merchantRequestId String?
+  checkoutRequestId String?       @unique
+  mpesaReceipt      String?
+  resultCode        Int?
+  resultDesc        String?
+  orders            Order[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+model Shipment {
+  id             String          @id @default(cuid())
+  orderId        String          @unique
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  courier        Courier
+  trackingNumber String
+  status         ShipmentStatus  @default(AWAITING_PICKUP)
+  events         ShipmentEvent[]
+  lastSyncedAt   DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([trackingNumber])
+}
+
+model ShipmentEvent {
+  id         String         @id @default(cuid())
+  shipmentId String
+  shipment   Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  status     ShipmentStatus
+  location   String?
+  note       String?
+  /// "manual" when posted by the seller, otherwise the courier provider id
+  source     String
+  occurredAt DateTime       @default(now())
+
+  @@index([shipmentId])
+}
