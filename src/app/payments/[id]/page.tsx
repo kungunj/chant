@@ -43,7 +43,10 @@ export default async function PaymentPage({ params }: { params: Promise<{ id: st
               M-Pesa receipt <span className="font-mono font-semibold">{payment.mpesaReceipt}</span>
             </p>
           )}
-          <p className="text-stone-600">The seller has been notified and will ship your order.</p>
+          <p className="text-stone-600">
+            Your money is held safely by SparesHub and only released to the seller after you confirm you received
+            the item. The seller will now ship your order.
+          </p>
           <Link href="/orders" className="btn-primary">View my orders</Link>
         </div>
       )}

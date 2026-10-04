@@ -52,7 +52,7 @@ export async function placeOrder(_: FormState, formData: FormData): Promise<Form
 
   const cart = await readCart();
   const products = await prisma.product.findMany({
-    where: { id: { in: Object.keys(cart) }, deletedAt: null },
+    where: { id: { in: Object.keys(cart) }, deletedAt: null, store: { status: "APPROVED" } },
     include: { store: true },
   });
   if (products.length === 0) return { error: "Your cart is empty" };

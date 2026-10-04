@@ -1,16 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
 import { register } from "@/app/actions/auth";
-import { FormMessage } from "@/components/FormMessage";
+import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
 
 export function RegisterForm({ next, defaultRole }: { next?: string; defaultRole: "BUYER" | "TECHNICIAN" }) {
-  const [state, action] = useActionState(register, undefined);
   return (
-    <form action={action} className="space-y-4">
+    <ActionForm action={register} className="space-y-4">
       <input type="hidden" name="next" value={next ?? "/"} />
-      <FormMessage state={state} />
       <fieldset className="grid grid-cols-2 gap-2 text-sm">
         <legend className="label">I want to</legend>
         <label className="card flex cursor-pointer items-center gap-2 p-3 has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50">
@@ -37,6 +34,6 @@ export function RegisterForm({ next, defaultRole }: { next?: string; defaultRole
         <input id="password" name="password" type="password" minLength={8} required className="input" autoComplete="new-password" />
       </div>
       <SubmitButton className="btn-primary w-full">Create account</SubmitButton>
-    </form>
+    </ActionForm>
   );
 }

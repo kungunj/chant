@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { confirmDelivery } from "@/app/actions/orders";
+import { EscrowPanel } from "@/components/EscrowPanel";
 import { TrackingTimeline } from "@/components/TrackingTimeline";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { courierLabels, formatKes, orderStatusLabels } from "@/lib/format";
+import { courierLabels, displayPhone, formatKes, orderStatusLabels } from "@/lib/format";
 import { syncShipment } from "@/lib/shipments";
 
 export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
@@ -16,7 +16,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
 
   const order = await prisma.order.findUniqueOrThrow({
     where: { id },
-    include: { store: true, items: true, payment: true, shipment: { include: { events: true } } },
+    include: { store: true, items: true, payment: true, dispute: true, shipment: { include: { events: true } } },
   });
 
   return (
@@ -45,9 +45,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         <Link href={`/payments/${order.payment.id}`} className="btn-mpesa">Complete M-Pesa payment</Link>
       )}
 
+      <EscrowPanel order={order} role="buyer" />
+
       <div className="card space-y-1 p-4 text-sm">
         <h2 className="mb-1 font-semibold">Delivery</h2>
-        <p>{order.shippingName} · {`0${order.shippingPhone.slice(3)}`}</p>
+        <p>{order.shippingName} · {displayPhone(order.shippingPhone)}</p>
         <p>{order.shippingAddress}, {order.shippingTown}</p>
         <p className="text-stone-500">Courier: {courierLabels[order.courier]}</p>
         {order.payment?.mpesaReceipt && <p className="text-stone-500">M-Pesa receipt: {order.payment.mpesaReceipt}</p>}
@@ -61,12 +63,6 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           <p className="text-sm text-stone-500">
             {order.status === "PAID" ? "The seller is preparing your parcel." : "Tracking appears once the seller ships."}
           </p>
-        )}
-        {order.status === "SHIPPED" && (
-          <form action={confirmDelivery} className="mt-4">
-            <input type="hidden" name="orderId" value={order.id} />
-            <button className="btn-secondary">I have received this parcel</button>
-          </form>
         )}
       </div>
     </div>

@@ -1,4 +1,17 @@
-import type { Condition, Courier, DeviceCategory, OrderStatus, PaymentStatus, ShipmentStatus } from "@prisma/client";
+import type {
+  Condition,
+  Courier,
+  DeviceCategory,
+  EscrowStatus,
+  IdDocumentType,
+  OrderStatus,
+  PaymentStatus,
+  ShipmentStatus,
+  StoreDocumentKind,
+  StoreStatus,
+  WalletEntryType,
+  WithdrawalStatus,
+} from "@prisma/client";
 
 export function formatKes(amount: number): string {
   return `KSh ${amount.toLocaleString("en-KE")}`;
@@ -33,7 +46,8 @@ export const orderStatusLabels: Record<OrderStatus, string> = {
   PENDING_PAYMENT: "Awaiting payment",
   PAID: "Paid",
   SHIPPED: "Shipped",
-  DELIVERED: "Delivered",
+  DELIVERED: "Completed",
+  REFUNDED: "Refunded",
   CANCELLED: "Cancelled",
 };
 
@@ -52,3 +66,48 @@ export const shipmentStatusLabels: Record<ShipmentStatus, string> = {
   DELIVERED: "Delivered",
   RETURNED: "Returned to sender",
 };
+
+export const storeStatusLabels: Record<StoreStatus, string> = {
+  DRAFT: "Documents not submitted",
+  PENDING_REVIEW: "Awaiting approval",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+  SUSPENDED: "Suspended",
+};
+
+export const idTypeLabels: Record<IdDocumentType, string> = {
+  NATIONAL_ID: "National ID",
+  PASSPORT: "Passport",
+  ALIEN_ID: "Alien ID",
+};
+
+export const documentKindLabels: Record<StoreDocumentKind, string> = {
+  ID_FRONT: "ID front",
+  ID_BACK: "ID back",
+  SELFIE: "Selfie holding ID",
+  BUSINESS_PERMIT: "Business permit",
+};
+
+export const escrowStatusLabels: Record<EscrowStatus, string> = {
+  HELD: "Held in escrow",
+  RELEASED: "Released to seller",
+  REFUNDED: "Refunded to buyer",
+  SPLIT: "Split by moderator",
+};
+
+export const walletEntryLabels: Record<WalletEntryType, string> = {
+  ESCROW_RELEASE: "Sale paid out of escrow",
+  REFUND: "Refund",
+  WITHDRAWAL: "Withdrawal to M-Pesa",
+  WITHDRAWAL_REVERSAL: "Withdrawal rejected, money returned",
+};
+
+export const withdrawalStatusLabels: Record<WithdrawalStatus, string> = {
+  REQUESTED: "Processing",
+  PAID: "Sent to M-Pesa",
+  REJECTED: "Rejected",
+};
+
+export function displayPhone(phone: string) {
+  return phone.startsWith("254") ? `0${phone.slice(3)}` : phone;
+}

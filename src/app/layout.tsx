@@ -7,7 +7,7 @@ import { cartCount, readCart } from "@/lib/cart";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SparesHub Kenya – spares and used parts for technicians",
+  title: "SparesHub – spares and used parts for technicians",
   description:
     "Buy and sell spares and used parts for laptops, TVs, radios, phones and car electronics. Pay with M-Pesa, delivered by Posta Kenya or Fargo Courier.",
 };
@@ -35,6 +35,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               {user ? (
                 <>
                   <Link href="/orders" className="hover:text-brand-600">My orders</Link>
+                  <Link href="/wallet" className="hover:text-brand-600">Wallet</Link>
+                  {user.role === "ADMIN" && <Link href="/admin" className="hover:text-brand-600">Admin</Link>}
                   <Link href="/dashboard" className="hover:text-brand-600">
                     {user.role === "BUYER" ? "Sell" : "My store"}
                   </Link>

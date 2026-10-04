@@ -17,7 +17,8 @@ export type SearchParams = {
  * brand, model or description, OR the whole query must match a part number.
  */
 export function buildProductWhere(params: SearchParams): Prisma.ProductWhereInput {
-  const where: Prisma.ProductWhereInput = { deletedAt: null };
+  // Only listings from stores an admin has approved are public.
+  const where: Prisma.ProductWhereInput = { deletedAt: null, store: { status: "APPROVED" } };
   if (params.category) where.category = params.category;
   if (params.condition) where.condition = params.condition;
   if (params.storeId) where.storeId = params.storeId;

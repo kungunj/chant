@@ -4,7 +4,10 @@ import { prisma } from "./db";
 
 const SYNC_INTERVAL_MS = 10 * 60 * 1000;
 
-/** Adds a status update to a shipment and keeps the order status in step with it. */
+/**
+ * Adds a status update to a shipment. A "delivered" update from the seller or courier does not
+ * complete the order: only the buyer's confirmation (or a moderator) releases the escrowed money.
+ */
 export async function recordShipmentEvent(params: {
   shipmentId: string;
   status: ShipmentStatus;
@@ -13,7 +16,7 @@ export async function recordShipmentEvent(params: {
   source: string;
   occurredAt?: Date;
 }) {
-  const shipment = await prisma.shipment.update({
+  return prisma.shipment.update({
     where: { id: params.shipmentId },
     data: {
       status: params.status,
@@ -28,10 +31,6 @@ export async function recordShipmentEvent(params: {
       },
     },
   });
-  if (params.status === "DELIVERED") {
-    await prisma.order.update({ where: { id: shipment.orderId }, data: { status: "DELIVERED" } });
-  }
-  return shipment;
 }
 
 /**

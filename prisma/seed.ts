@@ -12,6 +12,11 @@ async function main() {
     update: {},
     create: { email: "tech@example.com", name: "Wanjiru Electronics", phone: "254708374149", role: "TECHNICIAN", passwordHash },
   });
+  const admin = await prisma.user.upsert({
+    where: { email: "admin@example.com" },
+    update: {},
+    create: { email: "admin@example.com", name: "SparesHub Moderator", phone: "254700000000", role: "ADMIN", passwordHash },
+  });
   await prisma.user.upsert({
     where: { email: "buyer@example.com" },
     update: {},
@@ -27,6 +32,14 @@ async function main() {
       name: "Wanjiru Electronics",
       location: "Luthuli Avenue, Nairobi",
       description: "Tested spares for TVs, laptops and car radios.",
+      // Demo store skips document review so the catalogue is visible straight away.
+      status: "APPROVED",
+      legalName: "Wanjiru Kamau",
+      idType: "NATIONAL_ID",
+      idNumber: "12345678",
+      submittedAt: new Date(),
+      reviewedAt: new Date(),
+      reviewedById: admin.id,
     },
   });
 
@@ -45,7 +58,7 @@ async function main() {
       data: { ...p, storeId: store.id, partNumberKey: p.partNumber ? normalizePartNumber(p.partNumber) : null },
     });
   }
-  console.log("Seeded. Log in as tech@example.com or buyer@example.com with password123");
+  console.log("Seeded. Log in as tech@example.com, buyer@example.com or admin@example.com with password123");
 }
 
 main().finally(() => prisma.$disconnect());

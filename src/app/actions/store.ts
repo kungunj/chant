@@ -29,15 +29,16 @@ export async function saveStore(_: FormState, formData: FormData): Promise<FormS
   const parsed = storeSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-  if (user.store) {
-    await prisma.store.update({ where: { id: user.store.id }, data: parsed.data });
+  let store = user.store;
+  if (store) {
+    store = await prisma.store.update({ where: { id: store.id }, data: parsed.data });
   } else {
     let slug = slugify(parsed.data.name);
     if (await prisma.store.findUnique({ where: { slug } })) slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
-    await prisma.store.create({ data: { ...parsed.data, slug, ownerId: user.id } });
+    store = await prisma.store.create({ data: { ...parsed.data, slug, ownerId: user.id } });
   }
   revalidatePath("/dashboard");
-  redirect("/dashboard");
+  redirect(store.status === "DRAFT" || store.status === "REJECTED" ? "/dashboard/verification" : "/dashboard");
 }
 
 const productSchema = z.object({

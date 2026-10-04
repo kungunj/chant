@@ -11,9 +11,10 @@ describe("normalizePartNumber", () => {
 });
 
 describe("buildProductWhere", () => {
-  it("hides deleted products and applies filters", () => {
+  it("hides deleted products and unapproved stores, and applies filters", () => {
     expect(buildProductWhere({ category: "TV", condition: "USED_FOR_PARTS" })).toEqual({
       deletedAt: null,
+      store: { status: "APPROVED" },
       category: "TV",
       condition: "USED_FOR_PARTS",
     });

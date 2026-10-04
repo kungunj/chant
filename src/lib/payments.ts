@@ -1,7 +1,9 @@
 import { prisma } from "./db";
 
 /**
- * Records the outcome of an STK push. Safe to call more than once (callback and status
+ * Records the outcome of an STK push. On success the orders become PAID and the money is held in
+ * escrow until the buyer confirms delivery (see escrow.ts).
+ * Safe to call more than once (callback and status
  * query can race): only the first call for a still-pending payment has any effect.
  */
 export async function settlePayment(params: {
@@ -41,7 +43,7 @@ export async function settlePayment(params: {
     if (claimed.count === 0 || !success) return;
 
     for (const order of payment.orders) {
-      await tx.order.update({ where: { id: order.id }, data: { status: "PAID" } });
+      await tx.order.update({ where: { id: order.id }, data: { status: "PAID", escrowStatus: "HELD" } });
       for (const item of order.items) {
         const updated = await tx.product.updateMany({
           where: { id: item.productId, stock: { gte: item.quantity } },

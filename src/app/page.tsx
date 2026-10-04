@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const latest = await prisma.product.findMany({
-    where: { deletedAt: null, stock: { gt: 0 } },
+    where: { deletedAt: null, stock: { gt: 0 }, store: { status: "APPROVED" } },
     include: { store: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take: 12,

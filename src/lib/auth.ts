@@ -25,6 +25,12 @@ export async function requireTechnician() {
   return user;
 }
 
+export async function requireAdmin() {
+  const user = await requireUser("/admin");
+  if (user.role !== "ADMIN") redirect("/");
+  return user;
+}
+
 export async function requireStore() {
   const user = await requireTechnician();
   if (!user.store) redirect("/dashboard/store");

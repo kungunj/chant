@@ -1,18 +1,15 @@
 "use client";
 
 import type { Courier } from "@prisma/client";
-import { useActionState } from "react";
 import { addTrackingUpdate, shipOrder } from "@/app/actions/orders";
-import { FormMessage } from "@/components/FormMessage";
+import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { courierLabels, shipmentStatusLabels } from "@/lib/format";
 
 export function ShipForm({ orderId, courier }: { orderId: string; courier: Courier }) {
-  const [state, action] = useActionState(shipOrder, undefined);
   return (
-    <form action={action} className="space-y-3">
+    <ActionForm action={shipOrder} className="space-y-3">
       <input type="hidden" name="orderId" value={orderId} />
-      <FormMessage state={state} />
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="courier">Courier</label>
@@ -28,16 +25,14 @@ export function ShipForm({ orderId, courier }: { orderId: string; courier: Couri
         </div>
       </div>
       <SubmitButton>Mark as shipped</SubmitButton>
-    </form>
+    </ActionForm>
   );
 }
 
 export function TrackingUpdateForm({ shipmentId }: { shipmentId: string }) {
-  const [state, action] = useActionState(addTrackingUpdate, undefined);
   return (
-    <form action={action} className="space-y-3">
+    <ActionForm action={addTrackingUpdate} className="space-y-3">
       <input type="hidden" name="shipmentId" value={shipmentId} />
-      <FormMessage state={state} />
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="status">Status</label>
@@ -57,6 +52,6 @@ export function TrackingUpdateForm({ shipmentId }: { shipmentId: string }) {
         <input id="note" name="note" className="input" />
       </div>
       <SubmitButton className="btn-secondary">Post update</SubmitButton>
-    </form>
+    </ActionForm>
   );
 }

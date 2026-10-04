@@ -7,7 +7,7 @@ import { formatKes } from "@/lib/format";
 export default async function CartPage() {
   const cart = await readCart();
   const products = await prisma.product.findMany({
-    where: { id: { in: Object.keys(cart) }, deletedAt: null },
+    where: { id: { in: Object.keys(cart) }, deletedAt: null, store: { status: "APPROVED" } },
     include: { store: { select: { name: true } } },
   });
   const total = products.reduce((sum, p) => sum + p.priceKes * cart[p.id], 0);

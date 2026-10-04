@@ -9,7 +9,7 @@ export default async function CheckoutPage() {
   const user = await requireUser("/checkout");
   const cart = await readCart();
   const products = await prisma.product.findMany({
-    where: { id: { in: Object.keys(cart) }, deletedAt: null },
+    where: { id: { in: Object.keys(cart) }, deletedAt: null, store: { status: "APPROVED" } },
     include: { store: { select: { name: true } } },
   });
   if (products.length === 0) redirect("/cart");

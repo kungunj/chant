@@ -1,13 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { addToCart } from "@/app/actions/cart";
+import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { categoryLabels, conditionLabels, formatKes } from "@/lib/format";
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const product = await prisma.product.findFirst({ where: { id, deletedAt: null }, include: { store: true } });
+  const [product, viewer] = await Promise.all([
+    prisma.product.findFirst({ where: { id, deletedAt: null }, include: { store: true } }),
+    getCurrentUser(),
+  ]);
   if (!product) notFound();
+  const isPublic = product.store.status === "APPROVED";
+  if (!isPublic && viewer?.id !== product.store.ownerId && viewer?.role !== "ADMIN") notFound();
 
   return (
     <div className="grid gap-8 md:grid-cols-2">
@@ -66,7 +72,12 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <dd>{product.stock > 0 ? product.stock : "Sold out"}</dd>
         </dl>
 
-        {product.stock > 0 ? (
+        {!isPublic && (
+          <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+            Preview: this listing goes public once SparesHub approves the store.
+          </p>
+        )}
+        {product.stock > 0 && isPublic ? (
           <form action={addToCart} className="flex items-end gap-3">
             <input type="hidden" name="productId" value={product.id} />
             <div className="w-24">
@@ -75,9 +86,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             </div>
             <button className="btn-primary">Add to cart</button>
           </form>
-        ) : (
+        ) : product.stock <= 0 ? (
           <p className="text-sm font-medium text-red-700">This item is sold out.</p>
-        )}
+        ) : null}
 
         {product.description && <p className="whitespace-pre-line text-sm text-stone-700">{product.description}</p>}
 
@@ -87,6 +98,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             {product.store.name}
           </Link>
           {product.store.location && <p className="text-stone-500">{product.store.location}</p>}
+          {isPublic && <p className="mt-1 text-xs text-green-700">✓ Identity verified by SparesHub</p>}
         </div>
       </div>
     </div>

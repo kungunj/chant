@@ -25,11 +25,45 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-bold">{store.name}</h1>
           <p className="text-sm text-stone-500">
             <Link href={`/stores/${store.slug}`} className="hover:underline">View public store</Link> ·{" "}
-            <Link href="/dashboard/store" className="hover:underline">Edit store details</Link>
+            <Link href="/dashboard/store" className="hover:underline">Edit store details</Link> ·{" "}
+            <Link href="/wallet" className="hover:underline">Wallet</Link>
           </p>
         </div>
         <Link href="/dashboard/products/new" className="btn-primary">+ Post a product</Link>
       </div>
+
+      {store.status !== "APPROVED" && (
+        <div
+          className={`rounded-lg border p-4 text-sm ${
+            store.status === "PENDING_REVIEW" ? "border-blue-200 bg-blue-50" : "border-red-200 bg-red-50"
+          }`}
+        >
+          {store.status === "DRAFT" && (
+            <>
+              <strong>Your store is not public yet.</strong> Verify your identity so buyers can see your products.{" "}
+              <Link href="/dashboard/verification" className="font-medium underline">Upload ID documents</Link>
+            </>
+          )}
+          {store.status === "PENDING_REVIEW" && (
+            <>
+              <strong>Documents received.</strong> A SparesHub moderator is reviewing your store. Your products go
+              live as soon as it is approved.
+            </>
+          )}
+          {store.status === "REJECTED" && (
+            <>
+              <strong>Verification rejected:</strong> {store.reviewNote}{" "}
+              <Link href="/dashboard/verification" className="font-medium underline">Submit again</Link>
+            </>
+          )}
+          {store.status === "SUSPENDED" && (
+            <>
+              <strong>Your store is suspended</strong> and hidden from buyers: {store.reviewNote} Contact SparesHub
+              support to resolve this.
+            </>
+          )}
+        </div>
+      )}
 
       {toShip.length > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">

@@ -36,8 +36,60 @@ enum OrderStatus {
   PENDING_PAYMENT
   PAID
   SHIPPED
+  /// Buyer confirmed receipt (or a moderator ruled for the seller); escrow released
   DELIVERED
+  /// A moderator ruled for the buyer; escrow refunded in full or in part
+  REFUNDED
   CANCELLED
+}
+
+enum StoreStatus {
+  /// Created, documents not yet submitted
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum IdDocumentType {
+  NATIONAL_ID
+  PASSPORT
+  ALIEN_ID
+}
+
+enum StoreDocumentKind {
+  ID_FRONT
+  ID_BACK
+  SELFIE
+  BUSINESS_PERMIT
+}
+
+enum EscrowStatus {
+  /// Buyer has paid; money sits with SparesHub, not yet the seller's
+  HELD
+  RELEASED
+  REFUNDED
+  /// Moderator split the money between buyer and seller
+  SPLIT
+}
+
+enum WalletEntryType {
+  ESCROW_RELEASE
+  REFUND
+  WITHDRAWAL
+  WITHDRAWAL_REVERSAL
+}
+
+enum WithdrawalStatus {
+  REQUESTED
+  PAID
+  REJECTED
+}
+
+enum DisputeStatus {
+  OPEN
+  RESOLVED
 }
 
 enum PaymentStatus {
@@ -63,16 +115,21 @@ enum ShipmentStatus {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  name         String
-  phone        String?
-  passwordHash String
-  role         Role      @default(BUYER)
-  createdAt    DateTime  @default(now())
-  store        Store?
-  orders       Order[]   @relation("BuyerOrders")
-  payments     Payment[]
+  id              String           @id @default(cuid())
+  email           String           @unique
+  name            String
+  phone           String?
+  passwordHash    String
+  role            Role             @default(BUYER)
+  createdAt       DateTime         @default(now())
+  store           Store?
+  orders          Order[]          @relation("BuyerOrders")
+  payments        Payment[]
+  walletEntries   WalletEntry[]
+  withdrawals     Withdrawal[]
+  disputesOpened  Dispute[]        @relation("DisputeOpener")
+  disputeMessages DisputeMessage[]
+  storesReviewed  Store[]          @relation("StoreReviewer")
 }
 
 model Store {
@@ -86,6 +143,40 @@ model Store {
   products    Product[]
   orders      Order[]
   createdAt   DateTime  @default(now())
+
+  /// Only APPROVED stores and their products are visible to the public
+  status       StoreStatus     @default(DRAFT)
+  /// Legal name exactly as on the ID document
+  legalName    String?
+  idType       IdDocumentType?
+  idNumber     String?
+  /// KRA PIN, optional
+  kraPin       String?
+  submittedAt  DateTime?
+  reviewedAt   DateTime?
+  reviewedById String?
+  reviewedBy   User?           @relation("StoreReviewer", fields: [reviewedById], references: [id])
+  /// Shown to the seller when the application is rejected or the store suspended
+  reviewNote   String?
+  documents    StoreDocument[]
+
+  @@index([status])
+}
+
+/// Identity documents uploaded by a seller. Files are stored privately (see src/lib/storage.ts)
+/// and only the store owner and admins can open them.
+model StoreDocument {
+  id         String            @id @default(cuid())
+  storeId    String
+  store      Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  kind       StoreDocumentKind
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+  storageKey String            @unique
+  createdAt  DateTime          @default(now())
+
+  @@index([storeId])
 }
 
 model Product {
@@ -118,12 +209,12 @@ model Product {
 }
 
 model Order {
-  id              String      @id @default(cuid())
+  id              String        @id @default(cuid())
   buyerId         String
-  buyer           User        @relation("BuyerOrders", fields: [buyerId], references: [id])
+  buyer           User          @relation("BuyerOrders", fields: [buyerId], references: [id])
   storeId         String
-  store           Store       @relation(fields: [storeId], references: [id])
-  status          OrderStatus @default(PENDING_PAYMENT)
+  store           Store         @relation(fields: [storeId], references: [id])
+  status          OrderStatus   @default(PENDING_PAYMENT)
   totalKes        Int
   shippingName    String
   shippingPhone   String
@@ -131,11 +222,18 @@ model Order {
   shippingTown    String
   courier         Courier
   paymentId       String?
-  payment         Payment?    @relation(fields: [paymentId], references: [id])
+  payment         Payment?      @relation(fields: [paymentId], references: [id])
   items           OrderItem[]
   shipment        Shipment?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  /// Set once the order is paid; money is only released to the seller on buyer confirmation
+  escrowStatus    EscrowStatus?
+  escrowSettledAt DateTime?
+  /// Platform commission kept when escrow is released to the seller
+  commissionKes   Int           @default(0)
+  dispute         Dispute?
+  walletEntries   WalletEntry[]
 
   @@index([buyerId])
   @@index([storeId])
@@ -198,4 +296,71 @@ model ShipmentEvent {
   occurredAt DateTime       @default(now())
 
   @@index([shipmentId])
+}
+
+/// Append-only ledger. A user's wallet balance is the sum of their entries.
+model WalletEntry {
+  id           String          @id @default(cuid())
+  userId       String
+  user         User            @relation(fields: [userId], references: [id])
+  type         WalletEntryType
+  /// Positive credits the wallet, negative debits it
+  amountKes    Int
+  orderId      String?
+  order        Order?          @relation(fields: [orderId], references: [id])
+  withdrawalId String?
+  withdrawal   Withdrawal?     @relation(fields: [withdrawalId], references: [id])
+  note         String?
+  createdAt    DateTime        @default(now())
+
+  @@index([userId])
+}
+
+/// A request to send wallet money to the user's M-Pesa. Paid out by an admin.
+model Withdrawal {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id])
+  amountKes   Int
+  phone       String
+  status      WithdrawalStatus @default(REQUESTED)
+  /// M-Pesa transaction code of the payout, entered by the admin
+  reference   String?
+  adminNote   String?
+  processedAt DateTime?
+  entries     WalletEntry[]
+  createdAt   DateTime         @default(now())
+
+  @@index([status])
+}
+
+model Dispute {
+  id         String           @id @default(cuid())
+  orderId    String           @unique
+  order      Order            @relation(fields: [orderId], references: [id])
+  openedById String
+  openedBy   User             @relation("DisputeOpener", fields: [openedById], references: [id])
+  reason     String
+  status     DisputeStatus    @default(OPEN)
+  /// Amount refunded to the buyer when resolved; the rest goes to the seller
+  refundKes  Int?
+  resolution String?
+  resolvedAt DateTime?
+  messages   DisputeMessage[]
+  createdAt  DateTime         @default(now())
+
+  @@index([status])
+}
+
+model DisputeMessage {
+  id        String   @id @default(cuid())
+  disputeId String
+  dispute   Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  /// Null for system messages (dispute opened, resolved)
+  authorId  String?
+  author    User?    @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([disputeId, createdAt])
 }

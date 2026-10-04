@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "make-admin": "tsx scripts/make-admin.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

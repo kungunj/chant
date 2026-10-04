@@ -1,15 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
 import { placeOrder } from "@/app/actions/checkout";
-import { FormMessage } from "@/components/FormMessage";
+import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
 
 export function CheckoutForm({ name, phone, total }: { name: string; phone: string; total: string }) {
-  const [state, action] = useActionState(placeOrder, undefined);
   return (
-    <form action={action} className="space-y-5">
-      <FormMessage state={state} />
+    <ActionForm action={placeOrder} className="space-y-5">
       <fieldset className="card space-y-3 p-4">
         <legend className="px-1 font-semibold">Delivery</legend>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -57,6 +54,6 @@ export function CheckoutForm({ name, phone, total }: { name: string; phone: stri
       <SubmitButton className="btn-mpesa w-full py-3 text-base" pendingText="Sending M-Pesa prompt…">
         Pay {total} with M-Pesa
       </SubmitButton>
-    </form>
+    </ActionForm>
   );
 }

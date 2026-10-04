@@ -1,18 +1,15 @@
 "use client";
 
 import type { Product } from "@prisma/client";
-import { useActionState } from "react";
 import { saveProduct } from "@/app/actions/store";
-import { FormMessage } from "@/components/FormMessage";
+import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { categoryLabels, conditionLabels } from "@/lib/format";
 
 export function ProductForm({ product }: { product?: Product }) {
-  const [state, action] = useActionState(saveProduct, undefined);
   return (
-    <form action={action} className="space-y-4">
+    <ActionForm action={saveProduct} className="space-y-4">
       {product && <input type="hidden" name="id" value={product.id} />}
-      <FormMessage state={state} />
       <div>
         <label className="label" htmlFor="title">Title</label>
         <input id="title" name="title" defaultValue={product?.title} required className="input" placeholder="e.g. Samsung UA43 TV power board" />
@@ -68,6 +65,6 @@ export function ProductForm({ product }: { product?: Product }) {
         <textarea id="imageUrls" name="imageUrls" rows={2} defaultValue={product?.imageUrls.join("\n") ?? ""} className="input font-mono text-xs" placeholder="One https:// image link per line" />
       </div>
       <SubmitButton>{product ? "Save changes" : "Post product"}</SubmitButton>
-    </form>
+    </ActionForm>
   );
 }

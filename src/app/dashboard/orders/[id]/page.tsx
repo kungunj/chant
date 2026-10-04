@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { EscrowPanel } from "@/components/EscrowPanel";
 import { TrackingTimeline } from "@/components/TrackingTimeline";
 import { requireStore } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { courierLabels, formatKes, orderStatusLabels } from "@/lib/format";
+import { courierLabels, displayPhone, formatKes, orderStatusLabels } from "@/lib/format";
 import { ShipForm, TrackingUpdateForm } from "./ShippingForms";
 
 export default async function SellerOrderPage({ params }: { params: Promise<{ id: string }> }) {
@@ -11,7 +12,7 @@ export default async function SellerOrderPage({ params }: { params: Promise<{ id
   const { store } = await requireStore();
   const order = await prisma.order.findFirst({
     where: { id, storeId: store.id, status: { not: "PENDING_PAYMENT" } },
-    include: { items: true, payment: true, buyer: { select: { name: true } }, shipment: { include: { events: true } } },
+    include: { items: true, payment: true, dispute: true, buyer: { select: { name: true } }, shipment: { include: { events: true } } },
   });
   if (!order) notFound();
 
@@ -36,9 +37,11 @@ export default async function SellerOrderPage({ params }: { params: Promise<{ id
         </div>
       </div>
 
+      <EscrowPanel order={order} role="seller" />
+
       <div className="card space-y-1 p-4 text-sm">
         <h2 className="mb-1 font-semibold">Ship to</h2>
-        <p>{order.shippingName} · {`0${order.shippingPhone.slice(3)}`}</p>
+        <p>{order.shippingName} · {displayPhone(order.shippingPhone)}</p>
         <p>{order.shippingAddress}, {order.shippingTown}</p>
         <p className="text-stone-500">Buyer chose {courierLabels[order.courier]}</p>
       </div>
@@ -51,7 +54,8 @@ export default async function SellerOrderPage({ params }: { params: Promise<{ id
             {order.status === "SHIPPED" && (
               <div className="border-t border-stone-200 pt-4">
                 <p className="mb-2 text-sm text-stone-600">
-                  Copy the latest status from the courier so the buyer can follow their parcel.
+                  Copy the latest status from the courier so the buyer can follow their parcel. Marking it delivered
+                  does not release payment; the buyer&apos;s confirmation does.
                 </p>
                 <TrackingUpdateForm shipmentId={order.shipment.id} />
               </div>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireStore, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { releaseEscrow } from "@/lib/escrow";
 import { recordShipmentEvent } from "@/lib/shipments";
 import type { FormState } from "./types";
 
@@ -58,19 +59,21 @@ export async function addTrackingUpdate(_: FormState, formData: FormData): Promi
   return { ok: "Update posted" };
 }
 
-/** Buyer confirms the parcel arrived. */
+/** Buyer confirms the parcel arrived, which releases the escrowed money to the seller. */
 export async function confirmDelivery(formData: FormData) {
   const user = await requireUser();
   const order = await prisma.order.findFirst({
-    where: { id: String(formData.get("orderId") ?? ""), buyerId: user.id, status: "SHIPPED" },
-    include: { shipment: true },
+    where: { id: String(formData.get("orderId") ?? ""), buyerId: user.id, status: "SHIPPED", escrowStatus: "HELD" },
+    include: { shipment: true, dispute: true },
   });
-  if (!order?.shipment) return;
-  await recordShipmentEvent({
-    shipmentId: order.shipment.id,
-    status: "DELIVERED",
-    note: "Buyer confirmed receipt",
-    source: "buyer",
-  });
+  if (!order?.shipment || order.dispute?.status === "OPEN") return;
+  if (await releaseEscrow(order.id)) {
+    await recordShipmentEvent({
+      shipmentId: order.shipment.id,
+      status: "DELIVERED",
+      note: "Buyer confirmed receipt",
+      source: "buyer",
+    });
+  }
   revalidatePath(`/orders/${order.id}`);
 }
