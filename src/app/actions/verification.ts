@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireStore } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { adminIds, notify } from "@/lib/notify";
 import { MAX_DOCUMENT_BYTES, deletePrivateFile, savePrivateFile, sniffMimeType } from "@/lib/storage";
 import type { FormState } from "./types";
 
@@ -73,6 +74,11 @@ export async function submitVerification(_: FormState, formData: FormData): Prom
     }),
   ]);
   await Promise.all(old.map((d) => deletePrivateFile(d.storageKey)));
+  await notify(await adminIds(), {
+    title: "Store waiting for approval",
+    body: `${store.name} submitted identity documents for review.`,
+    link: `/admin/stores/${store.id}`,
+  });
 
   revalidatePath("/dashboard");
   redirect("/dashboard");

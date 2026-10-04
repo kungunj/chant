@@ -3,6 +3,8 @@ import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 /**
+ * File storage. Identity documents are private; product photos are public.
+ *
  * Private file storage for identity documents. Files live outside `public/` and are only served
  * through /api/documents/[id] after an access check. This uses the local disk (UPLOAD_DIR); on a
  * host without a persistent disk swap these three functions for a private S3/R2/Supabase bucket.
@@ -45,4 +47,33 @@ export async function readPrivateFile(key: string): Promise<Buffer> {
 export async function deletePrivateFile(key: string) {
   if (!/^[0-9a-f-]{36}\.[a-z]+$/.test(key)) return;
   await unlink(path.join(root(), key)).catch(() => undefined);
+}
+
+/** Product photos: resized to at most 1600px and re-encoded as WebP, which also strips EXIF/GPS data. */
+export const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
+
+export async function saveProductPhoto(bytes: Uint8Array): Promise<string> {
+  const sharp = (await import("sharp")).default;
+  const webp = await sharp(bytes)
+    .rotate()
+    .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
+    .webp({ quality: 80 })
+    .toBuffer();
+  const key = `${randomUUID()}.webp`;
+  await mkdir(path.join(root(), "public"), { recursive: true });
+  await writeFile(path.join(root(), "public", key), webp);
+  return `/api/images/${key}`;
+}
+
+const photoKey = /^[0-9a-f-]{36}\.webp$/;
+
+export async function readProductPhoto(key: string): Promise<Buffer> {
+  if (!photoKey.test(key)) throw new Error("Bad image key");
+  return readFile(path.join(root(), "public", key));
+}
+
+export async function deleteProductPhoto(url: string) {
+  const key = url.startsWith("/api/images/") ? url.slice("/api/images/".length) : "";
+  if (!photoKey.test(key)) return;
+  await unlink(path.join(root(), "public", key)).catch(() => undefined);
 }

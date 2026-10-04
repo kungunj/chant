@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import { ProductCard } from "@/components/ProductCard";
+import { Stars } from "@/components/Stars";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { storeRating } from "@/lib/reviews";
 import { buildProductWhere } from "@/lib/search";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ q?: string }> };
@@ -11,6 +13,15 @@ export default async function StorePage({ params, searchParams }: Props) {
   const [store, viewer] = await Promise.all([prisma.store.findUnique({ where: { slug } }), getCurrentUser()]);
   if (!store) notFound();
   if (store.status !== "APPROVED" && viewer?.id !== store.ownerId && viewer?.role !== "ADMIN") notFound();
+  const [rating, reviews] = await Promise.all([
+    storeRating(store.id),
+    prisma.review.findMany({
+      where: { storeId: store.id },
+      include: { buyer: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
+  ]);
   const products = await prisma.product.findMany({
     // Owners previewing an unapproved store still see their own listings.
     where: { ...buildProductWhere({ q, storeId: store.id }), store: undefined },
@@ -28,6 +39,7 @@ export default async function StorePage({ params, searchParams }: Props) {
           <p className="text-xs text-amber-700">Preview: not visible to buyers until approved</p>
         )}
         {store.location && <p className="text-sm text-stone-500">{store.location}</p>}
+        <Stars rating={rating.average} count={rating.count} />
         {store.description && <p className="mt-2 max-w-2xl text-sm text-stone-700">{store.description}</p>}
       </div>
       <form action={`/stores/${store.slug}`} className="flex max-w-md">
@@ -42,6 +54,24 @@ export default async function StorePage({ params, searchParams }: Props) {
             <ProductCard key={p.id} product={p} />
           ))}
         </div>
+      )}
+      {reviews.length > 0 && (
+        <section>
+          <h2 className="mb-2 font-semibold">Reviews</h2>
+          <div className="card divide-y divide-stone-200 text-sm">
+            {reviews.map((r) => (
+              <div key={r.id} className="space-y-1 p-3">
+                <div className="flex items-center gap-2">
+                  <Stars rating={r.rating} />
+                  <span className="text-xs text-stone-500">
+                    {r.buyer.name.split(" ")[0]} · {r.createdAt.toLocaleDateString("en-KE")}
+                  </span>
+                </div>
+                {r.comment && <p className="text-stone-700">{r.comment}</p>}
+              </div>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

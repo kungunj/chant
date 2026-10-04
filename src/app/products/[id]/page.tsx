@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { addToCart } from "@/app/actions/cart";
 import { getCurrentUser } from "@/lib/auth";
+import { Stars } from "@/components/Stars";
 import { prisma } from "@/lib/db";
+import { storeRating } from "@/lib/reviews";
 import { categoryLabels, conditionLabels, formatKes } from "@/lib/format";
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
@@ -14,6 +16,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   if (!product) notFound();
   const isPublic = product.store.status === "APPROVED";
   if (!isPublic && viewer?.id !== product.store.ownerId && viewer?.role !== "ADMIN") notFound();
+  const rating = await storeRating(product.storeId);
 
   return (
     <div className="grid gap-8 md:grid-cols-2">
@@ -98,7 +101,14 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             {product.store.name}
           </Link>
           {product.store.location && <p className="text-stone-500">{product.store.location}</p>}
+          <Stars rating={rating.average} count={rating.count} />
           {isPublic && <p className="mt-1 text-xs text-green-700">✓ Identity verified by SparesHub</p>}
+          <p className="mt-2 text-xs text-stone-500">
+            Delivery: {product.store.postaFeeKes !== null && `Posta Kenya ${formatKes(product.store.postaFeeKes)}`}
+            {product.store.postaFeeKes !== null && product.store.fargoFeeKes !== null && " · "}
+            {product.store.fargoFeeKes !== null && `Fargo Courier ${formatKes(product.store.fargoFeeKes)}`}
+          </p>
+          <p className="text-xs text-stone-500">Payment is held by SparesHub until you confirm delivery.</p>
         </div>
       </div>
     </div>

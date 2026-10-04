@@ -38,6 +38,14 @@ export function EscrowPanel({ order, role }: { order: Order & { dispute: Dispute
         </p>
       )}
 
+      {held && !disputeOpen && order.autoReleaseAt && (
+        <p className="rounded-md bg-amber-50 p-2 text-amber-800">
+          Marked delivered. Unless the buyer confirms or opens a dispute first, payment is released to the seller
+          automatically on{" "}
+          {order.autoReleaseAt.toLocaleString("en-KE", { timeZone: "Africa/Nairobi", dateStyle: "medium", timeStyle: "short" })}.
+        </p>
+      )}
+
       {role === "buyer" && held && !disputeOpen && order.status === "SHIPPED" && (
         <form action={confirmDelivery}>
           <input type="hidden" name="orderId" value={order.id} />

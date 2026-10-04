@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { readCart, writeCart } from "@/lib/cart";
 import { prisma } from "@/lib/db";
+import { deliveryFee } from "@/lib/delivery";
 import { stkPush } from "@/lib/mpesa";
 import { normalizeKenyanPhone } from "@/lib/phone";
 import type { FormState } from "./types";
@@ -63,7 +64,14 @@ export async function placeOrder(_: FormState, formData: FormData): Promise<Form
 
   const byStore = new Map<string, typeof products>();
   for (const p of products) byStore.set(p.storeId, [...(byStore.get(p.storeId) ?? []), p]);
-  const total = products.reduce((sum, p) => sum + p.priceKes * cart[p.id], 0);
+  const fees = new Map<string, number>();
+  for (const [storeId, items] of byStore) {
+    const fee = deliveryFee(items[0].store, shipping.courier);
+    if (fee === null) return { error: `${items[0].store.name} does not ship with the courier you picked` };
+    fees.set(storeId, fee);
+  }
+  const total =
+    products.reduce((sum, p) => sum + p.priceKes * cart[p.id], 0) + [...fees.values()].reduce((a, b) => a + b, 0);
 
   const payment = await prisma.$transaction(async (tx) => {
     const payment = await tx.payment.create({ data: { userId: user.id, amountKes: total, phone } });
@@ -75,7 +83,8 @@ export async function placeOrder(_: FormState, formData: FormData): Promise<Form
           buyerId: user.id,
           storeId,
           paymentId: payment.id,
-          totalKes: items.reduce((sum, p) => sum + p.priceKes * cart[p.id], 0),
+          deliveryFeeKes: fees.get(storeId)!,
+          totalKes: items.reduce((sum, p) => sum + p.priceKes * cart[p.id], 0) + fees.get(storeId)!,
           items: {
             create: items.map((p) => ({ productId: p.id, title: p.title, priceKes: p.priceKes, quantity: cart[p.id] })),
           },

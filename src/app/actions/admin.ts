@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { settleEscrow } from "@/lib/escrow";
+import { notify } from "@/lib/notify";
 import type { FormState } from "./types";
 
 const reviewSchema = z.object({
@@ -31,6 +32,18 @@ export async function reviewStore(_: FormState, formData: FormData): Promise<For
     },
   });
   if (updated.count === 0) return { error: "This store has already been reviewed" };
+  const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
+  await notify(store.ownerId, {
+    title: decision === "APPROVE" ? "Store approved" : decision === "REJECT" ? "Verification rejected" : "Store suspended",
+    body:
+      decision === "APPROVE"
+        ? `${store.name} is verified and now visible to buyers.`
+        : decision === "REJECT"
+          ? `Your store verification was rejected: ${note}. You can submit again.`
+          : `${store.name} has been suspended: ${note}`,
+    link: decision === "REJECT" ? "/dashboard/verification" : "/dashboard",
+    sms: true,
+  });
   revalidatePath(`/admin/stores/${storeId}`);
   revalidatePath("/admin");
   return { ok: decision === "APPROVE" ? "Store approved and now public" : decision === "REJECT" ? "Application rejected" : "Store suspended" };
@@ -46,6 +59,13 @@ export async function markWithdrawalPaid(_: FormState, formData: FormData): Prom
     data: { status: "PAID", reference, processedAt: new Date() },
   });
   if (updated.count === 0) return { error: "Already processed" };
+  const w = await prisma.withdrawal.findUniqueOrThrow({ where: { id } });
+  await notify(w.userId, {
+    title: "Withdrawal sent",
+    body: `KSh ${w.amountKes.toLocaleString("en-KE")} sent to your M-Pesa, transaction ${reference}.`,
+    link: "/wallet",
+    sms: true,
+  });
   revalidatePath("/admin/withdrawals");
   return { ok: "Marked as paid" };
 }
@@ -66,9 +86,15 @@ export async function rejectWithdrawal(_: FormState, formData: FormData): Promis
     await tx.walletEntry.create({
       data: { userId: withdrawal.userId, type: "WITHDRAWAL_REVERSAL", amountKes: withdrawal.amountKes, withdrawalId: id, note },
     });
-    return true;
+    return withdrawal;
   });
   if (!done) return { error: "Already processed" };
+  await notify(done.userId, {
+    title: "Withdrawal rejected",
+    body: `Your withdrawal of KSh ${done.amountKes.toLocaleString("en-KE")} was rejected (${note}). The money is back in your wallet.`,
+    link: "/wallet",
+    sms: true,
+  });
   revalidatePath("/admin/withdrawals");
   return { ok: "Rejected and money returned to the wallet" };
 }
@@ -110,6 +136,13 @@ export async function resolveDispute(_: FormState, formData: FormData): Promise<
     return true;
   });
   if (!ok) return { error: "This dispute is already resolved" };
+  const order = await prisma.order.findUniqueOrThrow({ where: { id: dispute.orderId }, include: { store: true } });
+  await notify([order.buyerId, order.store.ownerId], {
+    title: "Dispute resolved",
+    body: `The moderator resolved the dispute: KSh ${refundKes.toLocaleString("en-KE")} refunded to the buyer, KSh ${(order.totalKes - refundKes).toLocaleString("en-KE")} to the seller.`,
+    link: `/disputes/${disputeId}`,
+    sms: true,
+  });
   revalidatePath(`/disputes/${disputeId}`);
   return { ok: "Dispute resolved" };
 }

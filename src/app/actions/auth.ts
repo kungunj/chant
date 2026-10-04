@@ -37,11 +37,25 @@ export async function register(_: FormState, formData: FormData): Promise<FormSt
   redirect(role === "TECHNICIAN" ? "/dashboard/store" : safeNext(formData.get("next")));
 }
 
+// Failed logins per email, to slow down password guessing. In-memory, so per server instance.
+const failures = new Map<string, { count: number; until: number }>();
+const MAX_FAILURES = 8;
+const LOCK_MS = 15 * 60 * 1000;
+
 export async function login(_: FormState, formData: FormData): Promise<FormState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+  const record = failures.get(email);
+  if (record && record.count >= MAX_FAILURES && record.until > Date.now()) {
+    return { error: "Too many attempts. Wait 15 minutes or reset your password." };
+  }
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || !(await bcrypt.compare(password, user.passwordHash))) return { error: "Wrong email or password" };
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    const count = record && record.until > Date.now() ? record.count + 1 : 1;
+    failures.set(email, { count, until: Date.now() + LOCK_MS });
+    return { error: "Wrong email or password" };
+  }
+  failures.delete(email);
   await createSession(user.id);
   redirect(safeNext(formData.get("next")));
 }

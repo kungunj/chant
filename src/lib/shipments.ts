@@ -1,12 +1,16 @@
 import type { ShipmentStatus } from "@prisma/client";
 import { getCourierProvider } from "./couriers";
 import { prisma } from "./db";
+import { autoReleaseDays } from "./escrow";
+import { shipmentStatusLabels } from "./format";
+import { notify } from "./notify";
 
 const SYNC_INTERVAL_MS = 10 * 60 * 1000;
 
 /**
- * Adds a status update to a shipment. A "delivered" update from the seller or courier does not
- * complete the order: only the buyer's confirmation (or a moderator) releases the escrowed money.
+ * Adds a status update to a shipment and tells the buyer. A "delivered" update from the seller or
+ * courier does not complete the order: it starts the auto-release timer (see escrow.ts), and the
+ * buyer's confirmation, a moderator or that timer releases the escrowed money.
  */
 export async function recordShipmentEvent(params: {
   shipmentId: string;
@@ -16,7 +20,7 @@ export async function recordShipmentEvent(params: {
   source: string;
   occurredAt?: Date;
 }) {
-  return prisma.shipment.update({
+  const shipment = await prisma.shipment.update({
     where: { id: params.shipmentId },
     data: {
       status: params.status,
@@ -30,7 +34,33 @@ export async function recordShipmentEvent(params: {
         },
       },
     },
+    include: { order: true },
   });
+
+  if (params.source === "buyer") return shipment;
+  const { order } = shipment;
+  if (params.status === "DELIVERED" && !order.deliveredMarkedAt && order.escrowStatus === "HELD") {
+    const days = autoReleaseDays();
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { deliveredMarkedAt: new Date(), autoReleaseAt: days ? new Date(Date.now() + days * 86_400_000) : null },
+    });
+    await notify(order.buyerId, {
+      title: "Parcel marked delivered",
+      body: days
+        ? `Your parcel ${shipment.trackingNumber} was marked delivered. Confirm you received it, or open a dispute within ${days} days, otherwise payment is released to the seller automatically.`
+        : `Your parcel ${shipment.trackingNumber} was marked delivered. Please confirm you received it so the seller is paid.`,
+      link: `/orders/${order.id}`,
+      sms: true,
+    });
+  } else {
+    await notify(order.buyerId, {
+      title: "Tracking update",
+      body: `${shipment.trackingNumber}: ${shipmentStatusLabels[params.status]}${params.location ? ` at ${params.location}` : ""}.`,
+      link: `/orders/${order.id}`,
+    });
+  }
+  return shipment;
 }
 
 /**

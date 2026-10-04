@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { canAccessDispute } from "@/lib/disputes";
+import { adminIds, notify } from "@/lib/notify";
 import type { FormState } from "./types";
 
 const openSchema = z.object({
@@ -25,7 +26,7 @@ export async function openDispute(_: FormState, formData: FormData): Promise<For
       escrowStatus: "HELD",
       OR: [{ buyerId: user.id }, { store: { ownerId: user.id } }],
     },
-    include: { dispute: true },
+    include: { dispute: true, store: true },
   });
   if (!order) return { error: "A dispute can only be opened while the payment is held in escrow" };
   if (order.dispute) redirect(`/disputes/${order.dispute.id}`);
@@ -43,6 +44,14 @@ export async function openDispute(_: FormState, formData: FormData): Promise<For
       },
     },
   });
+  const otherParty = order.buyerId === user.id ? order.store.ownerId : order.buyerId;
+  await notify(otherParty, {
+    title: "Dispute opened",
+    body: `${user.name} opened a dispute on an order. The payment is frozen until a moderator resolves it. Please reply in the chat.`,
+    link: `/disputes/${dispute.id}`,
+    sms: true,
+  });
+  await notify(await adminIds(), { title: "New dispute", body: parsed.data.reason.slice(0, 140), link: `/disputes/${dispute.id}` });
   redirect(`/disputes/${dispute.id}`);
 }
 
@@ -58,6 +67,12 @@ export async function postDisputeMessage(_: FormState, formData: FormData): Prom
   if (dispute.status !== "OPEN") return { error: "This dispute is closed" };
 
   await prisma.disputeMessage.create({ data: { disputeId, authorId: user.id, body } });
+  const participants = [dispute.order.buyerId, dispute.order.store.ownerId].filter((id) => id !== user.id);
+  await notify(participants, {
+    title: user.role === "ADMIN" ? "Moderator message" : "New message in dispute",
+    body: `${user.role === "ADMIN" ? "Moderator" : user.name}: ${body.slice(0, 140)}`,
+    link: `/disputes/${disputeId}`,
+  });
   revalidatePath(`/disputes/${disputeId}`);
   return undefined;
 }

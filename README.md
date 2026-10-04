@@ -14,7 +14,11 @@ laptops, TVs, radios, phones, car electronics and more.
   buyer confirms they received the item. Sellers withdraw their wallet balance to M-Pesa.
 - **Disputes with a moderator**: buyer or seller can open a dispute while money is in escrow. That opens a
   three-way chat with a moderator, who decides how much to refund the buyer and how much to release.
-- **Delivery tracking** for Posta Kenya and Fargo Courier, with a public "Track parcel" page.
+- **Delivery** by Posta Kenya or Fargo Courier, with per-store delivery fees, a tracking timeline and a
+  public "Track parcel" page.
+- **Product photos** uploaded from the phone (resized, location data stripped), reviews and star ratings
+  for stores, cancellations with automatic refunds, in-app and SMS notifications, and password reset by
+  SMS code.
 
 ## Stack
 
@@ -51,7 +55,7 @@ Checks: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
    `MPESA_TRANSACTION_TYPE=CustomerBuyGoodsOnline` for a till number.
 
 One checkout can include items from several stores. It is paid with one STK push into the platform's
-paybill and split into one order per store. Paying sellers out (B2C or manual settlement) is not built yet.
+paybill and split into one order per store, each with that store's delivery fee for the chosen courier.
 
 ## Store verification
 
@@ -68,9 +72,15 @@ private bucket (S3, Cloudflare R2, Supabase Storage).
 
 ## Escrow, wallet and withdrawals
 
-- When M-Pesa confirms a payment, each order's money is marked **held in escrow**.
+- When M-Pesa confirms a payment, each order's money (items plus delivery fee) is marked **held in escrow**.
 - The buyer releases it with **"I received it, release payment"**. A seller or courier marking a parcel
-  delivered does *not* release money.
+  delivered does *not* release money; it starts a timer instead: if the buyer neither confirms nor opens a
+  dispute within `ESCROW_AUTO_RELEASE_DAYS` (default 7, `0` turns it off), the money is released
+  automatically. The buyer is told this by SMS when the parcel is marked delivered.
+- Auto-release runs from `GET /api/cron/escrow` with `Authorization: Bearer $CRON_SECRET`. Call it hourly
+  from any scheduler; `vercel.json` schedules it on Vercel (Hobby plans only allow daily crons).
+- Paid orders that have not shipped can be cancelled by the buyer or the seller, refunding the buyer in
+  full to their wallet and returning the stock.
 - Released money (minus `PLATFORM_COMMISSION_PERCENT`, default 0) is credited to the seller's wallet.
   The wallet is an append-only ledger, so every shilling has an entry tied to an order or withdrawal.
 - Sellers (and buyers with refunds) request a withdrawal to M-Pesa from **Wallet**. Moderators pay it out
@@ -100,9 +110,35 @@ Neither Posta Kenya nor Fargo Courier publishes an open tracking API, so trackin
   `src/lib/couriers/http.ts` to their response format. Shipments then sync automatically (at most every
   10 minutes, when the order or track page is viewed) and free-text statuses are mapped onto ours.
 
+## Notifications
+
+Every important event creates an in-app notification (the **Alerts** link in the header): new paid order,
+shipped, tracking updates, payment released, dispute opened / new message / resolved, store approved or
+rejected, withdrawal sent or rejected. Events that need action also go out by SMS through
+[Africa's Talking](https://africastalking.com) when `AT_USERNAME` and `AT_API_KEY` are set
+(`AT_USERNAME=sandbox` for testing). Without them, SMS are skipped and logged.
+
+Forgotten passwords are reset with a 6-digit code sent by SMS to the phone on the account (valid 15 minutes,
+5 tries, 3 codes an hour), so SMS must be configured in production for password reset to work. Logins
+lock for 15 minutes after 8 wrong passwords for an email.
+
+## Photos and files
+
+Product photos are re-encoded to WebP at most 1600px with [sharp](https://sharp.pixelplumbing.com), which
+also strips EXIF data such as the GPS location of the technician's workshop. They are stored under
+`UPLOAD_DIR/public` and served from `/api/images/...`. ID documents live in `UPLOAD_DIR` and are only served
+to their owner and moderators. Use a persistent disk for `UPLOAD_DIR`, or swap the functions in
+`src/lib/storage.ts` for object storage.
+
+## Deploying
+
+Any Node host with PostgreSQL works (Railway, Render, a VPS; Vercel works if `UPLOAD_DIR` is replaced with
+object storage). Set the variables from `.env.example`, run `npx prisma migrate deploy`, then
+`npm run build && npm start`. CI (`.github/workflows/ci.yml`) runs lint, type checks, unit tests and a build
+against Postgres on every pull request.
+
 ## Not built yet
 
-- Photo uploads: sellers paste https image links for now. Hook up object storage (S3, Cloudinary,
-  Supabase Storage) for direct uploads.
-- Automatic M-Pesa B2C payouts (withdrawals are paid out by a moderator), delivery fees, reviews/ratings,
-  email/SMS notifications, password reset.
+- Automatic M-Pesa B2C payouts: withdrawals are paid by a moderator from the M-Pesa business account and
+  the transaction code recorded. Daraja B2C needs a separate Safaricom approval.
+- Buyer–seller chat outside disputes, email notifications, admin user management and reports.

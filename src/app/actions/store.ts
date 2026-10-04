@@ -6,7 +6,10 @@ import { z } from "zod";
 import { requireStore, requireTechnician, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { normalizePartNumber } from "@/lib/search";
+import { MAX_PHOTO_BYTES, deleteProductPhoto, saveProductPhoto, sniffMimeType } from "@/lib/storage";
 import type { FormState } from "./types";
+
+const MAX_PHOTOS = 8;
 
 export async function becomeSeller() {
   const user = await requireUser("/dashboard/become-seller");
@@ -22,20 +25,40 @@ const storeSchema = z.object({
   name: z.string().trim().min(3, "Store name must be at least 3 characters").max(60),
   description: z.string().trim().max(1000).optional(),
   location: z.string().trim().max(100).optional(),
+  postaFeeKes: z.string().trim(),
+  fargoFeeKes: z.string().trim(),
 });
+
+/** Empty means the store does not ship with that courier. */
+function parseFee(value: string): number | null | "invalid" {
+  if (value === "") return null;
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 0 && n <= 50_000 ? n : "invalid";
+}
 
 export async function saveStore(_: FormState, formData: FormData): Promise<FormState> {
   const user = await requireTechnician();
   const parsed = storeSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const postaFeeKes = parseFee(parsed.data.postaFeeKes);
+  const fargoFeeKes = parseFee(parsed.data.fargoFeeKes);
+  if (postaFeeKes === "invalid" || fargoFeeKes === "invalid") return { error: "Delivery fees must be whole shillings" };
+  if (postaFeeKes === null && fargoFeeKes === null) return { error: "Offer at least one courier" };
+  const data = {
+    name: parsed.data.name,
+    description: parsed.data.description,
+    location: parsed.data.location,
+    postaFeeKes,
+    fargoFeeKes,
+  };
 
   let store = user.store;
   if (store) {
-    store = await prisma.store.update({ where: { id: store.id }, data: parsed.data });
+    store = await prisma.store.update({ where: { id: store.id }, data });
   } else {
     let slug = slugify(parsed.data.name);
     if (await prisma.store.findUnique({ where: { slug } })) slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
-    store = await prisma.store.create({ data: { ...parsed.data, slug, ownerId: user.id } });
+    store = await prisma.store.create({ data: { ...data, slug, ownerId: user.id } });
   }
   revalidatePath("/dashboard");
   redirect(store.status === "DRAFT" || store.status === "REJECTED" ? "/dashboard/verification" : "/dashboard");
@@ -61,11 +84,32 @@ export async function saveProduct(_: FormState, formData: FormData): Promise<For
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { id, imageUrls, ...fields } = parsed.data;
 
-  const urls = (imageUrls ?? "")
+  const links = (imageUrls ?? "")
     .split(/\s+|,/)
     .map((u) => u.trim())
     .filter(Boolean);
-  if (urls.some((u) => !/^https:\/\//.test(u))) return { error: "Image links must start with https://" };
+  if (links.some((u) => !/^https:\/\//.test(u))) return { error: "Image links must start with https://" };
+
+  const existing = id ? await prisma.product.findFirst({ where: { id, storeId: store.id, deletedAt: null } }) : null;
+  if (id && !existing) return { error: "Listing not found" };
+  const keep = new Set(formData.getAll("keepImage").map(String));
+  const kept = (existing?.imageUrls ?? []).filter((u) => u.startsWith("/api/images/") && keep.has(u));
+
+  const files = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+  if (kept.length + files.length + links.length > MAX_PHOTOS) return { error: `A listing can have at most ${MAX_PHOTOS} photos` };
+  const uploaded: string[] = [];
+  for (const file of files) {
+    if (file.size > MAX_PHOTO_BYTES) return { error: `${file.name} is larger than 8 MB` };
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const type = sniffMimeType(bytes);
+    if (!type || type === "application/pdf") return { error: `${file.name} is not a JPG, PNG or WebP photo` };
+    try {
+      uploaded.push(await saveProductPhoto(bytes));
+    } catch {
+      return { error: `${file.name} could not be read as an image` };
+    }
+  }
+  const urls = [...kept, ...uploaded, ...links];
 
   const data = {
     ...fields,
@@ -74,12 +118,14 @@ export async function saveProduct(_: FormState, formData: FormData): Promise<For
     brand: fields.brand || null,
     modelName: fields.modelName || null,
     description: fields.description || null,
-    imageUrls: urls.slice(0, 8),
+    imageUrls: urls,
   };
 
   if (id) {
     const updated = await prisma.product.updateMany({ where: { id, storeId: store.id, deletedAt: null }, data });
     if (updated.count === 0) return { error: "Listing not found" };
+    const removed = (existing?.imageUrls ?? []).filter((u) => !urls.includes(u));
+    await Promise.all(removed.map(deleteProductPhoto));
   } else {
     await prisma.product.create({ data: { ...data, storeId: store.id } });
   }
