@@ -50,7 +50,7 @@ export default async function CartPage() {
         <p className="text-lg">
           Total <strong>{formatKes(total)}</strong>
         </p>
-        <Link href="/checkout" className="btn-primary">Checkout</Link>
+        <Link href="/checkout" className="btn-accent">Checkout</Link>
       </div>
     </div>
   );

@@ -61,7 +61,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             </Link>
           </p>
           <h1 className="text-2xl font-bold">{product.title}</h1>
-          <p className="mt-2 text-2xl font-semibold text-brand-700">{formatKes(product.priceKes)}</p>
+          <p className="mt-2 text-2xl font-semibold text-accent-700">{formatKes(product.priceKes)}</p>
         </div>
 
         <dl className="card grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 p-4 text-sm">
@@ -101,7 +101,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               <label className="label" htmlFor="quantity">Quantity</label>
               <input id="quantity" name="quantity" type="number" min={1} max={product.stock} defaultValue={1} className="input" />
             </div>
-            <button className="btn-primary">Add to cart</button>
+            <button className="btn-accent">Add to cart</button>
           </form>
         ) : product.stock <= 0 ? (
           <p className="text-sm font-medium text-red-700">This item is sold out.</p>

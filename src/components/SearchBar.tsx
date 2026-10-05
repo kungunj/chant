@@ -114,7 +114,7 @@ export function SearchBar({ defaultValue = "" }: { defaultValue?: string }) {
                 <span className="block truncate">{item.title}</span>
                 {item.partNumber && <span className="block font-mono text-xs text-stone-500">P/N {item.partNumber}</span>}
               </span>
-              <span className="font-medium">{formatKes(item.priceKes)}</span>
+              <span className="font-medium text-accent-700">{formatKes(item.priceKes)}</span>
             </li>
           ))}
           <li className="border-t border-stone-100 px-3 py-2 text-xs text-stone-500">Press Enter to see all results</li>

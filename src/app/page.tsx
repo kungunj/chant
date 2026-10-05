@@ -23,7 +23,7 @@ export default async function HomePage() {
           part number, pay with M-Pesa and track delivery by Posta Kenya or Fargo Courier.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <Link href="/search" className="btn bg-white text-brand-700 hover:bg-brand-50">Browse all parts</Link>
+          <Link href="/search" className="btn-accent">Browse all parts</Link>
           <Link href="/dashboard" className="btn border border-white/60 text-white hover:bg-white/10">
             Open your store
           </Link>

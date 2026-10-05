@@ -63,7 +63,7 @@ export function RecentlyViewed() {
             </div>
             <div className="p-2 text-xs">
               <p className="line-clamp-2">{v.title}</p>
-              <p className="mt-1 font-semibold">{formatKes(v.priceKes)}</p>
+              <p className="mt-1 font-semibold text-accent-700">{formatKes(v.priceKes)}</p>
             </div>
           </Link>
         ))}
