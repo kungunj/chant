@@ -212,6 +212,14 @@ After deploying, `/api/health` returns `{"ok":true}` when the app can query the 
 can't), and `/api/health/setup` shows whether `DATABASE_URL` and `AUTH_SECRET` are set. On Netlify, a change
 to environment variables only takes effect after the next deploy.
 
+## Sign in with Google
+
+Optional. Create an OAuth client of type "Web application" in Google Cloud Console (APIs & Services →
+Credentials), add `${APP_URL}/api/auth/google/callback` as an authorised redirect URI, and set
+`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. The login and sign-up pages then show "Continue with Google".
+A Google account with a verified email logs into the SparesHub account with that email, or creates a buyer
+account (a seller account when started from "Sell as a technician").
+
 ## Not built yet
 
 - Automatic M-Pesa B2C payouts: withdrawals are paid by a moderator from the M-Pesa business account and
