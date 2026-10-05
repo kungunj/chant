@@ -1,0 +1,552 @@
+generator client {
+  provider      = "prisma-client-js"
+  // rhel-openssl-3.0.x is the runtime used by Netlify and Vercel functions
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  BUYER
+  TECHNICIAN
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum DeviceCategory {
+  LAPTOP
+  DESKTOP
+  PHONE
+  TV
+  RADIO
+  AUDIO
+  CAR
+  APPLIANCE
+  OTHER
+}
+
+enum Condition {
+  NEW_SPARE
+  USED_WORKING
+  USED_FOR_PARTS
+  REFURBISHED
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  SHIPPED
+  /// Buyer confirmed receipt (or a moderator ruled for the seller); escrow released
+  DELIVERED
+  /// A moderator ruled for the buyer; escrow refunded in full or in part
+  REFUNDED
+  CANCELLED
+}
+
+enum StoreStatus {
+  /// Created, documents not yet submitted
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum IdDocumentType {
+  NATIONAL_ID
+  PASSPORT
+  ALIEN_ID
+}
+
+enum StoreDocumentKind {
+  ID_FRONT
+  ID_BACK
+  SELFIE
+  BUSINESS_PERMIT
+  /// Certificate of registration (business name) or incorporation (company)
+  REGISTRATION_CERTIFICATE
+  /// CR12: official list of a company's directors and shareholders
+  CR12
+}
+
+/// A registered business (checked with the Registrar) or a private person selling their own used items
+enum SellerType {
+  BUSINESS
+  INDIVIDUAL
+}
+
+/// Does the name on the seller's M-Pesa line match the name on their ID?
+enum NameCheckStatus {
+  NOT_CHECKED
+  /// Waiting for the seller to approve the KSh 1 M-Pesa prompt, or for Safaricom's answer
+  PENDING
+  MATCHED
+  MISMATCH
+  ERROR
+  /// A moderator confirmed the M-Pesa name by hand
+  MANUALLY_VERIFIED
+}
+
+enum PaymentPurpose {
+  ORDER
+  /// Seller registration fee (KSh 100, or KSh 1 to re-check a different M-Pesa line). For individual
+  /// sellers Safaricom also tells us the payer's M-Pesa account name, which is compared with the ID.
+  NAME_CHECK
+}
+
+/// How the seller's business is registered with the Business Registration Service (BRS)
+enum BusinessType {
+  BUSINESS_NAME
+  PARTNERSHIP
+  LIMITED_COMPANY
+  LLP
+}
+
+/// Result of checking the business against the Registrar (BRS)
+enum RegistryStatus {
+  NOT_CHECKED
+  /// The registry has this number, the name matches and the business is active
+  MATCHED
+  /// Found, but the name, owners or status don't match what the seller entered
+  MISMATCH
+  NOT_FOUND
+  /// The registry or provider could not be reached; try again or check by hand
+  ERROR
+  /// A moderator checked the business on eCitizen/BRS by hand
+  MANUALLY_VERIFIED
+}
+
+enum EscrowStatus {
+  /// Buyer has paid; money sits with SparesHub, not yet the seller's
+  HELD
+  RELEASED
+  REFUNDED
+  /// Moderator split the money between buyer and seller
+  SPLIT
+}
+
+enum WalletEntryType {
+  ESCROW_RELEASE
+  REFUND
+  WITHDRAWAL
+  WITHDRAWAL_REVERSAL
+}
+
+enum WithdrawalStatus {
+  REQUESTED
+  PAID
+  REJECTED
+}
+
+enum DisputeStatus {
+  OPEN
+  RESOLVED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum Courier {
+  POSTA_KENYA
+  FARGO_COURIER
+  OTHER
+}
+
+enum ShipmentStatus {
+  AWAITING_PICKUP
+  IN_TRANSIT
+  ARRIVED_AT_BRANCH
+  OUT_FOR_DELIVERY
+  DELIVERED
+  RETURNED
+}
+
+model User {
+  id              String           @id @default(cuid())
+  email           String           @unique
+  name            String
+  phone           String?
+  passwordHash    String
+  role            Role             @default(BUYER)
+  createdAt       DateTime         @default(now())
+  store           Store?
+  orders          Order[]          @relation("BuyerOrders")
+  payments        Payment[]
+  walletEntries   WalletEntry[]
+  withdrawals     Withdrawal[]
+  disputesOpened  Dispute[]        @relation("DisputeOpener")
+  disputeMessages DisputeMessage[]
+  storesReviewed  Store[]          @relation("StoreReviewer")
+  notifications   Notification[]
+  reviews         Review[]
+  passwordResets  PasswordReset[]
+  savedItems      SavedItem[]
+}
+
+model Store {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  description String?
+  location    String?
+  ownerId     String    @unique
+  owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  products    Product[]
+  orders      Order[]
+  createdAt   DateTime  @default(now())
+
+  /// Only APPROVED stores and their products are visible to the public
+  status    StoreStatus     @default(DRAFT)
+  /// Legal name exactly as on the ID document
+  legalName String?
+  idType    IdDocumentType?
+  idNumber  String?
+  /// KRA PIN of the business (or of the owner, for a sole proprietor)
+  kraPin    String?
+
+  sellerType SellerType @default(BUSINESS)
+
+  /// Names read from the ID photo (by the ID reader, or typed by a moderator looking at the photo)
+  idNamesRead   String?
+  /// "dojah", "mock" or "moderator"
+  idNamesSource String?
+
+  /// Individual sellers: the M-Pesa line whose registered name must match their ID
+  mpesaPhone            String?
+  mpesaName             String?
+  mpesaNameStatus       NameCheckStatus @default(NOT_CHECKED)
+  mpesaNameCheckedAt    DateTime?
+  nameCheckPaymentId    String?         @unique
+  nameCheckPayment      Payment?        @relation("NameCheck", fields: [nameCheckPaymentId], references: [id])
+  /// When the seller paid the registration fee (REGISTRATION_FEE_KES) by M-Pesa
+  registrationFeePaidAt DateTime?
+
+  /// Registered business, checked against the Registrar (BRS) before approval
+  businessType      BusinessType?
+  businessName      String?
+  /// e.g. BN-ABC1234 (business name), PVT-ABC1234 (company), LLP-ABC123
+  businessRegNo     String?
+  registryStatus    RegistryStatus  @default(NOT_CHECKED)
+  registryCheckedAt DateTime?
+  /// Which check produced registryStatus: a provider name, or "manual"
+  registrySource    String?
+  /// Details returned by the registry (name, status, owners/directors) or the moderator's note
+  registryDetails   Json?
+  submittedAt       DateTime?
+  reviewedAt        DateTime?
+  reviewedById      String?
+  reviewedBy        User?           @relation("StoreReviewer", fields: [reviewedById], references: [id])
+  /// Shown to the seller when the application is rejected or the store suspended
+  reviewNote        String?
+  documents         StoreDocument[]
+  reviews           Review[]
+
+  /// Delivery fee charged per order for each courier; null means the store does not ship with it
+  postaFeeKes Int? @default(300)
+  fargoFeeKes Int? @default(400)
+
+  @@index([status])
+}
+
+/// Identity documents uploaded by a seller. Files are stored privately (see src/lib/storage.ts)
+/// and only the store owner and admins can open them.
+model StoreDocument {
+  id         String            @id @default(cuid())
+  storeId    String
+  store      Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  kind       StoreDocumentKind
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+  storageKey String            @unique
+  createdAt  DateTime          @default(now())
+
+  @@index([storeId])
+}
+
+model Product {
+  id            String         @id @default(cuid())
+  storeId       String
+  store         Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  title         String
+  /// Manufacturer part / product number, e.g. "BN44-00807A" or "L14M4P23"
+  partNumber    String?
+  /// partNumber upper-cased with spaces, dashes, dots and slashes removed, for forgiving search
+  partNumberKey String?
+  brand         String?
+  modelName     String?
+  category      DeviceCategory
+  condition     Condition
+  description   String?
+  /// Price in whole Kenya shillings
+  priceKes      Int
+  stock         Int            @default(1)
+  imageUrls     String[]
+  /// What was tested and works, e.g. "Board powers on, HDMI and tuner work"
+  workingParts  String?
+  /// What does not work or is missing, e.g. "Screen broken", or "None" when everything works
+  faultyParts   String?
+  /// Short clip showing the item working, served from /api/videos/[key]
+  videoUrl      String?
+  /// Soft delete so that past orders keep their product reference
+  deletedAt     DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  orderItems    OrderItem[]
+  savedBy       SavedItem[]
+
+  @@index([storeId])
+  @@index([partNumberKey])
+  @@index([category])
+}
+
+model Order {
+  id                String        @id @default(cuid())
+  buyerId           String
+  buyer             User          @relation("BuyerOrders", fields: [buyerId], references: [id])
+  storeId           String
+  store             Store         @relation(fields: [storeId], references: [id])
+  status            OrderStatus   @default(PENDING_PAYMENT)
+  totalKes          Int
+  shippingName      String
+  shippingPhone     String
+  shippingAddress   String
+  shippingTown      String
+  courier           Courier
+  paymentId         String?
+  payment           Payment?      @relation(fields: [paymentId], references: [id])
+  items             OrderItem[]
+  shipment          Shipment?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  /// Set once the order is paid; money is only released to the seller on buyer confirmation
+  escrowStatus      EscrowStatus?
+  escrowSettledAt   DateTime?
+  /// SparesHub's markup (PLATFORM_MARKUP_PERCENT of the seller's prices) included in totalKes
+  markupKes         Int           @default(0)
+  /// Part of the markup SparesHub kept when escrow was settled (none if the buyer was refunded)
+  commissionKes     Int           @default(0)
+  /// Courier fee included in totalKes
+  deliveryFeeKes    Int           @default(0)
+  /// When the seller or courier marked the parcel delivered; escrow auto-releases at autoReleaseAt
+  /// unless the buyer confirms earlier or opens a dispute
+  deliveredMarkedAt DateTime?
+  autoReleaseAt     DateTime?
+  cancelledAt       DateTime?
+  cancelReason      String?
+  review            Review?
+  dispute           Dispute?
+  walletEntries     WalletEntry[]
+
+  @@index([buyerId])
+  @@index([storeId])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  /// Snapshot of title and price at time of purchase
+  title     String
+  priceKes  Int
+  quantity  Int
+}
+
+/// One M-Pesa STK Push request. A single checkout can pay for orders from several stores.
+model Payment {
+  id                String         @id @default(cuid())
+  userId            String
+  user              User           @relation(fields: [userId], references: [id])
+  amountKes         Int
+  phone             String
+  status            PaymentStatus  @default(PENDING)
+  merchantRequestId String?
+  checkoutRequestId String?        @unique
+  mpesaReceipt      String?
+  resultCode        Int?
+  resultDesc        String?
+  purpose           PaymentPurpose @default(ORDER)
+  orders            Order[]
+  nameCheckFor      Store?         @relation("NameCheck")
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model Shipment {
+  id             String          @id @default(cuid())
+  orderId        String          @unique
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  courier        Courier
+  trackingNumber String
+  status         ShipmentStatus  @default(AWAITING_PICKUP)
+  events         ShipmentEvent[]
+  lastSyncedAt   DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([trackingNumber])
+}
+
+model ShipmentEvent {
+  id         String         @id @default(cuid())
+  shipmentId String
+  shipment   Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  status     ShipmentStatus
+  location   String?
+  note       String?
+  /// "manual" when posted by the seller, otherwise the courier provider id
+  source     String
+  occurredAt DateTime       @default(now())
+
+  @@index([shipmentId])
+}
+
+/// Append-only ledger. A user's wallet balance is the sum of their entries.
+model WalletEntry {
+  id           String          @id @default(cuid())
+  userId       String
+  user         User            @relation(fields: [userId], references: [id])
+  type         WalletEntryType
+  /// Positive credits the wallet, negative debits it
+  amountKes    Int
+  orderId      String?
+  order        Order?          @relation(fields: [orderId], references: [id])
+  withdrawalId String?
+  withdrawal   Withdrawal?     @relation(fields: [withdrawalId], references: [id])
+  note         String?
+  createdAt    DateTime        @default(now())
+
+  @@index([userId])
+}
+
+/// A request to send wallet money to the user's M-Pesa. Paid out by an admin.
+model Withdrawal {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id])
+  amountKes   Int
+  phone       String
+  status      WithdrawalStatus @default(REQUESTED)
+  /// M-Pesa transaction code of the payout, entered by the admin
+  reference   String?
+  adminNote   String?
+  processedAt DateTime?
+  entries     WalletEntry[]
+  createdAt   DateTime         @default(now())
+
+  @@index([status])
+}
+
+model Dispute {
+  id         String           @id @default(cuid())
+  orderId    String           @unique
+  order      Order            @relation(fields: [orderId], references: [id])
+  openedById String
+  openedBy   User             @relation("DisputeOpener", fields: [openedById], references: [id])
+  reason     String
+  status     DisputeStatus    @default(OPEN)
+  /// Amount refunded to the buyer when resolved; the rest goes to the seller
+  refundKes  Int?
+  resolution String?
+  resolvedAt DateTime?
+  messages   DisputeMessage[]
+  createdAt  DateTime         @default(now())
+
+  @@index([status])
+}
+
+model DisputeMessage {
+  id        String   @id @default(cuid())
+  disputeId String
+  dispute   Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  /// Null for system messages (dispute opened, resolved)
+  authorId  String?
+  author    User?    @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([disputeId, createdAt])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  /// Page to open when the notification is clicked
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
+/// Buyer's rating of a seller after a completed order.
+model Review {
+  id        String   @id @default(cuid())
+  orderId   String   @unique
+  order     Order    @relation(fields: [orderId], references: [id])
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id])
+  buyerId   String
+  buyer     User     @relation(fields: [buyerId], references: [id])
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@index([storeId])
+}
+
+/// One-time code sent by SMS to reset a forgotten password.
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+/// Uploaded files when STORAGE_DRIVER=database (hosts without a persistent disk). See src/lib/storage.ts.
+model StoredFile {
+  key       String   @id
+  bytes     Bytes
+  mimeType  String
+  createdAt DateTime @default(now())
+}
+
+/// One row per rate-limited action, so limits hold across serverless instances.
+model RateLimitHit {
+  id        String   @id @default(cuid())
+  key       String
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
+}
+
+/// A buyer's saved listing (like a watchlist); they're told when its price drops.
+model SavedItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([productId])
+}
