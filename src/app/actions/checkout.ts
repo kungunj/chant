@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { deliveryFee } from "@/lib/delivery";
 import { stkPush } from "@/lib/mpesa";
 import { normalizeKenyanPhone } from "@/lib/phone";
+import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 import type { FormState } from "./types";
 
 const checkoutSchema = z.object({
@@ -50,6 +51,8 @@ export async function placeOrder(_: FormState, formData: FormData): Promise<Form
   if (!phone) return { error: "Enter the M-Pesa number to pay with, e.g. 0712 345 678" };
   const shippingPhone = normalizeKenyanPhone(shipping.shippingPhone);
   if (!shippingPhone) return { error: "Enter a valid phone number for the recipient" };
+  // Each attempt sends an M-Pesa PIN prompt to someone's phone.
+  if (!(await rateLimit(`stk:${user.id}`, 6, 10 * 60 * 1000))) return { error: TOO_MANY };
 
   const cart = await readCart();
   const products = await prisma.product.findMany({
@@ -107,6 +110,7 @@ export async function retryPayment(formData: FormData) {
     include: { orders: { where: { status: "PENDING_PAYMENT" } } },
   });
   if (!previous || previous.orders.length === 0) redirect("/orders");
+  if (!(await rateLimit(`stk:${user.id}`, 6, 10 * 60 * 1000))) redirect(`/payments/${previous.id}`);
 
   const phone = normalizeKenyanPhone(String(formData.get("mpesaPhone") ?? "")) ?? previous.phone;
   const payment = await prisma.payment.create({

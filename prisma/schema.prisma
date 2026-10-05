@@ -436,3 +436,12 @@ model StoredFile {
   mimeType  String
   createdAt DateTime @default(now())
 }
+
+/// One row per rate-limited action, so limits hold across serverless instances.
+model RateLimitHit {
+  id        String   @id @default(cuid())
+  key       String
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
+}

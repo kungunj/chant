@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireStore, requireTechnician, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 import { normalizePartNumber } from "@/lib/search";
 import { MAX_PHOTO_BYTES, deleteProductPhoto, saveProductPhoto, sniffMimeType } from "@/lib/storage";
 import type { FormState } from "./types";
@@ -80,6 +81,7 @@ const productSchema = z.object({
 
 export async function saveProduct(_: FormState, formData: FormData): Promise<FormState> {
   const { store } = await requireStore();
+  if (!(await rateLimit(`product:${store.id}`, 60, 60 * 60 * 1000))) return { error: TOO_MANY };
   const parsed = productSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { id, imageUrls, ...fields } = parsed.data;

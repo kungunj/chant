@@ -5,6 +5,7 @@ import { randomInt } from "node:crypto";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { clientIp, rateLimit, TOO_MANY } from "@/lib/rate-limit";
 import { createSession } from "@/lib/session";
 import { sendSms } from "@/lib/sms";
 import type { FormState } from "./types";
@@ -18,6 +19,7 @@ const MAX_ATTEMPTS = 5;
  */
 export async function requestPasswordReset(_: FormState, formData: FormData): Promise<FormState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!(await rateLimit(`reset:${await clientIp()}`, 10, 60 * 60 * 1000))) return { error: TOO_MANY };
   const user = await prisma.user.findUnique({ where: { email } });
   if (user?.phone) {
     const recent = await prisma.passwordReset.count({

@@ -5,8 +5,8 @@ import { SearchBar } from "@/components/SearchBar";
 import { getCurrentUser } from "@/lib/auth";
 import { cartCount, readCart } from "@/lib/cart";
 import { prisma } from "@/lib/db";
-import "./globals.css";
 import { isStaff } from "@/lib/roles";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "SparesHub – spares and used parts for technicians",

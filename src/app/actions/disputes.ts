@@ -7,8 +7,9 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { canAccessDispute } from "@/lib/disputes";
 import { adminIds, notify } from "@/lib/notify";
-import type { FormState } from "./types";
+import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 import { isStaff } from "@/lib/roles";
+import type { FormState } from "./types";
 
 const openSchema = z.object({
   orderId: z.string(),
@@ -62,6 +63,7 @@ export async function postDisputeMessage(_: FormState, formData: FormData): Prom
   const body = String(formData.get("body") ?? "").trim();
   if (!body) return { error: "Write a message" };
   if (body.length > 2000) return { error: "Keep messages under 2000 characters" };
+  if (!(await rateLimit(`dispute-msg:${user.id}`, 20, 60 * 1000))) return { error: TOO_MANY };
 
   const dispute = await prisma.dispute.findUnique({ where: { id: disputeId }, include: { order: { include: { store: true } } } });
   if (!dispute || !canAccessDispute(user, dispute)) return { error: "Dispute not found" };

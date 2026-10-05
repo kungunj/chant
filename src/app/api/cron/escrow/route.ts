@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { runAutoRelease } from "@/lib/escrow";
+import { pruneRateLimits } from "@/lib/rate-limit";
 
 /**
  * Releases escrow for parcels marked delivered more than ESCROW_AUTO_RELEASE_DAYS ago where the buyer
@@ -11,5 +12,7 @@ export async function GET(request: NextRequest) {
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  return NextResponse.json(await runAutoRelease());
+  const result = await runAutoRelease();
+  await pruneRateLimits();
+  return NextResponse.json(result);
 }

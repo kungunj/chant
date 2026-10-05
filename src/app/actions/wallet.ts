@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { normalizeKenyanPhone } from "@/lib/phone";
+import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 import { MIN_WITHDRAWAL_KES, WithdrawalError, requestWithdrawal } from "@/lib/wallet";
 import type { FormState } from "./types";
 
@@ -18,6 +19,7 @@ export async function withdraw(_: FormState, formData: FormData): Promise<FormSt
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const phone = normalizeKenyanPhone(parsed.data.phone);
   if (!phone) return { error: "Enter the M-Pesa number to send the money to" };
+  if (!(await rateLimit(`withdraw:${user.id}`, 5, 60 * 60 * 1000))) return { error: TOO_MANY };
   try {
     await requestWithdrawal(user.id, parsed.data.amountKes, phone);
   } catch (error) {
