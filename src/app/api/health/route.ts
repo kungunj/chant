@@ -33,15 +33,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     const code = (error as { errorCode?: string; code?: string }).errorCode ?? (error as { code?: string }).code;
-    // Drop quoted values (user names, hosts) so the reason is safe to show publicly.
+    // Mask passwords in connection strings so the reason is safe to show publicly.
     const reason = (error instanceof Error ? error.message : String(error))
-      .replace(/`[^`]*`/g, "…")
-      .replace(/postgres(?:ql)?:\/\/\S+/g, "…")
+      .replace(/(postgres(?:ql)?:\/\/[^:@\s]*:)[^@\s]*@/g, "$1***@")
       .split("\n")
+      .map((line) => line.trim())
       .filter(Boolean)
-      .slice(-2)
       .join(" ")
-      .slice(0, 300);
+      .slice(0, 600);
     return NextResponse.json({ ok: false, code: code ?? null, reason }, { headers: { "Cache-Control": "no-store" } });
   }
 }
