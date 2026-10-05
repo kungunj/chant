@@ -67,8 +67,8 @@ paybill and split into one order per store, each with that store's delivery fee 
    note. A rejected seller sees the note and can resubmit. Approved stores can later be suspended, which
    hides them and their products immediately.
 
-On a host without a persistent private disk, replace the three functions in `src/lib/storage.ts` with a
-private bucket (S3, Cloudflare R2, Supabase Storage).
+On a host without a persistent private disk (Netlify, Vercel), set `STORAGE_DRIVER=database` to keep the
+files in Postgres instead, or replace the functions in `src/lib/storage.ts` with a private bucket.
 
 ## Escrow, wallet and withdrawals
 
@@ -127,13 +127,13 @@ lock for 15 minutes after 8 wrong passwords for an email.
 Product photos are re-encoded to WebP at most 1600px with [sharp](https://sharp.pixelplumbing.com), which
 also strips EXIF data such as the GPS location of the technician's workshop. They are stored under
 `UPLOAD_DIR/public` and served from `/api/images/...`. ID documents live in `UPLOAD_DIR` and are only served
-to their owner and moderators. Use a persistent disk for `UPLOAD_DIR`, or swap the functions in
-`src/lib/storage.ts` for object storage.
+to their owner and moderators. Use a persistent disk for `UPLOAD_DIR`, set `STORAGE_DRIVER=database` to store
+files in Postgres, or swap the functions in `src/lib/storage.ts` for object storage.
 
 ## Deploying
 
-Any Node host with PostgreSQL works (Railway, Render, a VPS; Vercel works if `UPLOAD_DIR` is replaced with
-object storage). Set the variables from `.env.example`, run `npx prisma migrate deploy`, then
+Any Node host with PostgreSQL works (Railway, Render, a VPS, or Netlify/Vercel with
+`STORAGE_DRIVER=database`; serverless hosts cap request bodies at about 6 MB, which limits photos per upload). Set the variables from `.env.example`, run `npx prisma migrate deploy`, then
 `npm run build && npm start`. CI (`.github/workflows/ci.yml`) runs lint, type checks, unit tests and a build
 against Postgres on every pull request.
 

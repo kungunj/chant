@@ -1,16 +1,50 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { prisma } from "./db";
 
 /**
- * File storage. Identity documents are private; product photos are public.
+ * File storage. Identity documents are private (served only through /api/documents/[id] after an
+ * access check); product photos are public (served from /api/images/[key]).
  *
- * Private file storage for identity documents. Files live outside `public/` and are only served
- * through /api/documents/[id] after an access check. This uses the local disk (UPLOAD_DIR); on a
- * host without a persistent disk swap these three functions for a private S3/R2/Supabase bucket.
+ * Two backends, picked with STORAGE_DRIVER:
+ * - "disk" (default): files under UPLOAD_DIR. Needs a persistent disk.
+ * - "database": files in the StoredFile table. Works on serverless hosts (Netlify, Vercel) with no
+ *   disk; fine for a test site or modest traffic. Move to object storage for heavy photo traffic.
  */
+function storeInDatabase() {
+  return process.env.STORAGE_DRIVER === "database";
+}
+
 function root() {
   return path.resolve(process.env.UPLOAD_DIR || "./uploads");
+}
+
+async function put(key: string, bytes: Uint8Array, mimeType: string, isPublic: boolean) {
+  if (storeInDatabase()) {
+    await prisma.storedFile.create({ data: { key, bytes: Buffer.from(bytes), mimeType } });
+    return;
+  }
+  const dir = isPublic ? path.join(root(), "public") : root();
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, key), bytes, isPublic ? undefined : { mode: 0o600 });
+}
+
+async function get(key: string, isPublic: boolean): Promise<Buffer> {
+  if (storeInDatabase()) {
+    const file = await prisma.storedFile.findUnique({ where: { key } });
+    if (!file) throw new Error("File not found");
+    return Buffer.from(file.bytes);
+  }
+  return readFile(path.join(isPublic ? path.join(root(), "public") : root(), key));
+}
+
+async function remove(key: string, isPublic: boolean) {
+  if (storeInDatabase()) {
+    await prisma.storedFile.deleteMany({ where: { key } });
+    return;
+  }
+  await unlink(path.join(isPublic ? path.join(root(), "public") : root(), key)).catch(() => undefined);
 }
 
 export const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
@@ -32,21 +66,22 @@ export function sniffMimeType(bytes: Uint8Array): string | null {
   return null;
 }
 
+const privateKey = /^[0-9a-f-]{36}\.[a-z]+$/;
+
 export async function savePrivateFile(bytes: Uint8Array, mimeType: string): Promise<string> {
   const key = `${randomUUID()}${extensions[mimeType] ?? ""}`;
-  await mkdir(root(), { recursive: true });
-  await writeFile(path.join(root(), key), bytes, { mode: 0o600 });
+  await put(key, bytes, mimeType, false);
   return key;
 }
 
 export async function readPrivateFile(key: string): Promise<Buffer> {
-  if (!/^[0-9a-f-]{36}\.[a-z]+$/.test(key)) throw new Error("Bad storage key");
-  return readFile(path.join(root(), key));
+  if (!privateKey.test(key)) throw new Error("Bad storage key");
+  return get(key, false);
 }
 
 export async function deletePrivateFile(key: string) {
-  if (!/^[0-9a-f-]{36}\.[a-z]+$/.test(key)) return;
-  await unlink(path.join(root(), key)).catch(() => undefined);
+  if (!privateKey.test(key)) return;
+  await remove(key, false);
 }
 
 /** Product photos: resized to at most 1600px and re-encoded as WebP, which also strips EXIF/GPS data. */
@@ -60,8 +95,7 @@ export async function saveProductPhoto(bytes: Uint8Array): Promise<string> {
     .webp({ quality: 80 })
     .toBuffer();
   const key = `${randomUUID()}.webp`;
-  await mkdir(path.join(root(), "public"), { recursive: true });
-  await writeFile(path.join(root(), "public", key), webp);
+  await put(key, webp, "image/webp", true);
   return `/api/images/${key}`;
 }
 
@@ -69,11 +103,11 @@ const photoKey = /^[0-9a-f-]{36}\.webp$/;
 
 export async function readProductPhoto(key: string): Promise<Buffer> {
   if (!photoKey.test(key)) throw new Error("Bad image key");
-  return readFile(path.join(root(), "public", key));
+  return get(key, true);
 }
 
 export async function deleteProductPhoto(url: string) {
   const key = url.startsWith("/api/images/") ? url.slice("/api/images/".length) : "";
   if (!photoKey.test(key)) return;
-  await unlink(path.join(root(), "public", key)).catch(() => undefined);
+  await remove(key, true);
 }
