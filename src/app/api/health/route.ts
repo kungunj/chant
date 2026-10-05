@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +9,8 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   try {
+    // Imported here so a Prisma engine that fails to load is reported too, not just a failed query.
+    const { prisma } = await import("@/lib/db");
     await prisma.$queryRaw`SELECT 1`;
     return NextResponse.json({ ok: true });
   } catch (error) {
