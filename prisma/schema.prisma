@@ -136,6 +136,7 @@ model User {
   notifications   Notification[]
   reviews         Review[]
   passwordResets  PasswordReset[]
+  savedItems      SavedItem[]
 }
 
 model Store {
@@ -213,6 +214,7 @@ model Product {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   orderItems    OrderItem[]
+  savedBy       SavedItem[]
 
   @@index([storeId])
   @@index([partNumberKey])
@@ -444,4 +446,17 @@ model RateLimitHit {
   createdAt DateTime @default(now())
 
   @@index([key, createdAt])
+}
+
+/// A buyer's saved listing (like a watchlist); they're told when its price drops.
+model SavedItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([productId])
 }

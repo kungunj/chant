@@ -20,6 +20,19 @@ laptops, TVs, radios, phones, car electronics and more.
   for stores, cancellations with automatic refunds, in-app and SMS notifications, and password reset by
   SMS code.
 
+- **Shopping like the big marketplaces**: search suggestions as you type, price range filter, photo gallery
+  with full-screen view, similar parts, recently viewed items, and saved items with price-drop alerts.
+
+## Security
+
+- Content Security Policy with a per-request nonce (`src/middleware.ts`), so script hidden in a listing or chat
+  message can't run, plus HSTS, clickjacking and MIME-sniffing headers (`next.config.ts`).
+- Rate limits stored in Postgres, so they hold across serverless instances: sign-up, login (per IP and per
+  account), password-reset SMS, M-Pesa prompts, dispute chat, product saves and withdrawals
+  (`src/lib/rate-limit.ts`). Old entries are pruned by the hourly cron.
+- Sessions are signed, HTTP-only, SameSite cookies; passwords are hashed with bcrypt; uploads are checked by
+  content, re-encoded and kept private; server actions reject cross-site requests.
+
 ## Stack
 
 Next.js 15 (App Router, server actions) · TypeScript · Tailwind CSS 4 · PostgreSQL with Prisma · Vitest.

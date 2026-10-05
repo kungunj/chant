@@ -14,7 +14,10 @@ export default async function SearchPage({ searchParams }: Props) {
   const category = sp.category && sp.category in categoryLabels ? (sp.category as DeviceCategory) : undefined;
   const condition = sp.condition && sp.condition in conditionLabels ? (sp.condition as Condition) : undefined;
   const page = Math.max(1, Number(sp.page) || 1);
-  const where = buildProductWhere({ q: sp.q, category, condition });
+  const price = (v: string | undefined) => (Number(v) > 0 ? Math.floor(Number(v)) : undefined);
+  const minPriceKes = price(sp.min);
+  const maxPriceKes = price(sp.max);
+  const where = buildProductWhere({ q: sp.q, category, condition, minPriceKes, maxPriceKes });
   const orderBy =
     sp.sort === "price_asc"
       ? { priceKes: "asc" as const }
@@ -65,6 +68,14 @@ export default async function SearchPage({ searchParams }: Props) {
               ))}
             </select>
           </div>
+          <fieldset>
+            <legend className="label">Price (KSh)</legend>
+            <div className="flex items-center gap-2">
+              <input name="min" type="number" min={0} placeholder="Min" defaultValue={minPriceKes} className="input" aria-label="Minimum price" />
+              <span className="text-stone-400">–</span>
+              <input name="max" type="number" min={0} placeholder="Max" defaultValue={maxPriceKes} className="input" aria-label="Maximum price" />
+            </div>
+          </fieldset>
           <div>
             <label className="label" htmlFor="sort">Sort</label>
             <select id="sort" name="sort" defaultValue={sp.sort ?? ""} className="input">

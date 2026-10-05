@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireStore, requireTechnician, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { formatKes } from "@/lib/format";
+import { notify } from "@/lib/notify";
 import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 import { normalizePartNumber } from "@/lib/search";
 import { MAX_PHOTO_BYTES, deleteProductPhoto, saveProductPhoto, sniffMimeType } from "@/lib/storage";
@@ -128,11 +130,29 @@ export async function saveProduct(_: FormState, formData: FormData): Promise<For
     if (updated.count === 0) return { error: "Listing not found" };
     const removed = (existing?.imageUrls ?? []).filter((u) => !urls.includes(u));
     await Promise.all(removed.map(deleteProductPhoto));
+    if (existing && data.priceKes < existing.priceKes) await notifyPriceDrop(id, existing.priceKes, data.priceKes);
   } else {
     await prisma.product.create({ data: { ...data, storeId: store.id } });
   }
   revalidatePath("/dashboard");
   redirect("/dashboard");
+}
+
+/** Tells everyone who saved the listing that it got cheaper. */
+async function notifyPriceDrop(productId: string, oldPrice: number, newPrice: number) {
+  const [product, savers] = await Promise.all([
+    prisma.product.findUniqueOrThrow({ where: { id: productId } }),
+    prisma.savedItem.findMany({ where: { productId }, select: { userId: true } }),
+  ]);
+  await Promise.all(
+    savers.map(({ userId }) =>
+      notify(userId, {
+        title: "Price drop on a saved item",
+        body: `${product.title} is now ${formatKes(newPrice)} (was ${formatKes(oldPrice)}).`,
+        link: `/products/${productId}`,
+      }),
+    ),
+  );
 }
 
 export async function deleteProduct(formData: FormData) {

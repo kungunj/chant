@@ -11,7 +11,8 @@ export function middleware(request: NextRequest) {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    // Sellers may link product photos hosted elsewhere over https.
+    "img-src 'self' data: blob: https:",
     "font-src 'self'",
     "connect-src 'self'",
     "object-src 'none'",

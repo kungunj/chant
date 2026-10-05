@@ -38,6 +38,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               {user ? (
                 <>
                   <Link href="/orders" className="hover:text-brand-600">My orders</Link>
+                  <Link href="/saved" className="hover:text-brand-600">Saved</Link>
                   <Link href="/wallet" className="hover:text-brand-600">Wallet</Link>
                   <Link href="/notifications" className="hover:text-brand-600" aria-label="Notifications">
                     Alerts

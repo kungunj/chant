@@ -10,6 +10,8 @@ export type SearchParams = {
   category?: DeviceCategory;
   condition?: Condition;
   storeId?: string;
+  minPriceKes?: number;
+  maxPriceKes?: number;
 };
 
 /**
@@ -22,6 +24,12 @@ export function buildProductWhere(params: SearchParams): Prisma.ProductWhereInpu
   if (params.category) where.category = params.category;
   if (params.condition) where.condition = params.condition;
   if (params.storeId) where.storeId = params.storeId;
+  if (params.minPriceKes || params.maxPriceKes) {
+    where.priceKes = {
+      ...(params.minPriceKes ? { gte: params.minPriceKes } : {}),
+      ...(params.maxPriceKes ? { lte: params.maxPriceKes } : {}),
+    };
+  }
 
   const q = params.q?.trim();
   if (!q) return where;

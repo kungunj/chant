@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ProductCard } from "@/components/ProductCard";
+import { RecentlyViewed } from "@/components/RecentlyViewed";
 import { prisma } from "@/lib/db";
 import { categoryLabels } from "@/lib/format";
 
@@ -52,6 +53,8 @@ export default async function HomePage() {
           </div>
         )}
       </section>
+
+      <RecentlyViewed />
     </div>
   );
 }

@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { addToCart } from "@/app/actions/cart";
+import { toggleSaved } from "@/app/actions/saved";
+import { ProductCard } from "@/components/ProductCard";
+import { ProductGallery } from "@/components/ProductGallery";
+import { TrackView } from "@/components/RecentlyViewed";
 import { getCurrentUser } from "@/lib/auth";
 import { Stars } from "@/components/Stars";
 import { prisma } from "@/lib/db";
@@ -17,28 +21,37 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   if (!product) notFound();
   const isPublic = product.store.status === "APPROVED";
   if (!isPublic && viewer?.id !== product.store.ownerId && !isStaff(viewer?.role)) notFound();
-  const rating = await storeRating(product.storeId);
+  const [rating, saved, similar] = await Promise.all([
+    storeRating(product.storeId),
+    viewer ? prisma.savedItem.findUnique({ where: { userId_productId: { userId: viewer.id, productId: product.id } } }) : null,
+    isPublic
+      ? prisma.product.findMany({
+          where: {
+            id: { not: product.id },
+            deletedAt: null,
+            stock: { gt: 0 },
+            store: { status: "APPROVED" },
+            OR: [
+              ...(product.partNumberKey ? [{ partNumberKey: product.partNumberKey }] : []),
+              ...(product.modelName ? [{ modelName: { equals: product.modelName, mode: "insensitive" as const } }] : []),
+              { category: product.category, ...(product.brand ? { brand: product.brand } : {}) },
+            ],
+          },
+          include: { store: { select: { name: true } } },
+          orderBy: { createdAt: "desc" },
+          take: 4,
+        })
+      : [],
+  ]);
 
   return (
     <div className="grid gap-8 md:grid-cols-2">
-      <div className="space-y-3">
-        <div className="card aspect-square overflow-hidden">
-          {product.imageUrls[0] ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={product.imageUrls[0]} alt={product.title} className="h-full w-full object-contain" />
-          ) : (
-            <div className="flex h-full items-center justify-center text-stone-400">No photo</div>
-          )}
-        </div>
-        {product.imageUrls.length > 1 && (
-          <div className="grid grid-cols-4 gap-2">
-            {product.imageUrls.slice(1).map((url) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={url} src={url} alt="" className="card aspect-square object-cover" />
-            ))}
-          </div>
-        )}
-      </div>
+      {isPublic && (
+        <TrackView
+          item={{ id: product.id, title: product.title, priceKes: product.priceKes, image: product.imageUrls[0] ?? null }}
+        />
+      )}
+      <ProductGallery urls={product.imageUrls} title={product.title} />
 
       <div className="space-y-4">
         <div>
@@ -94,6 +107,13 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <p className="text-sm font-medium text-red-700">This item is sold out.</p>
         ) : null}
 
+        {isPublic && (
+          <form action={toggleSaved}>
+            <input type="hidden" name="productId" value={product.id} />
+            <button className="btn-secondary">{saved ? "♥ Saved" : "♡ Save for later"}</button>
+          </form>
+        )}
+
         {product.description && <p className="whitespace-pre-line text-sm text-stone-700">{product.description}</p>}
 
         <div className="card p-4 text-sm">
@@ -112,6 +132,16 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <p className="text-xs text-stone-500">Payment is held by SparesHub until you confirm delivery.</p>
         </div>
       </div>
+      {similar.length > 0 && (
+        <section className="md:col-span-2">
+          <h2 className="mb-3 text-lg font-semibold">Similar parts</h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {similar.map((p) => (
+              <ProductCard key={p.id} product={p} storeName={p.store.name} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

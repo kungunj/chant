@@ -30,3 +30,11 @@ describe("buildProductWhere", () => {
     expect(buildProductWhere({ q: "tv" }).OR).toHaveLength(1);
   });
 });
+
+describe("price range", () => {
+  it("filters by minimum and maximum price", () => {
+    expect(buildProductWhere({ minPriceKes: 500, maxPriceKes: 2000 }).priceKes).toEqual({ gte: 500, lte: 2000 });
+    expect(buildProductWhere({ maxPriceKes: 2000 }).priceKes).toEqual({ lte: 2000 });
+    expect(buildProductWhere({}).priceKes).toBeUndefined();
+  });
+});
