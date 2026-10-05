@@ -26,3 +26,15 @@ describe("sendSms", () => {
     await expect(sendSms("254712345678", "hi", { NODE_ENV: "test" })).resolves.toBe(false);
   });
 });
+
+describe("staff roles", () => {
+  it("treats moderators and the super admin as staff", async () => {
+    const { isStaff, MAX_MODERATORS } = await import("@/lib/roles");
+    expect(isStaff("ADMIN")).toBe(true);
+    expect(isStaff("SUPER_ADMIN")).toBe(true);
+    expect(isStaff("BUYER")).toBe(false);
+    expect(isStaff("TECHNICIAN")).toBe(false);
+    expect(isStaff(undefined)).toBe(false);
+    expect(MAX_MODERATORS).toBe(3);
+  });
+});

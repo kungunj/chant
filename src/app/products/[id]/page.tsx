@@ -6,6 +6,7 @@ import { Stars } from "@/components/Stars";
 import { prisma } from "@/lib/db";
 import { storeRating } from "@/lib/reviews";
 import { categoryLabels, conditionLabels, formatKes } from "@/lib/format";
+import { isStaff } from "@/lib/roles";
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -15,7 +16,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   ]);
   if (!product) notFound();
   const isPublic = product.store.status === "APPROVED";
-  if (!isPublic && viewer?.id !== product.store.ownerId && viewer?.role !== "ADMIN") notFound();
+  if (!isPublic && viewer?.id !== product.store.ownerId && !isStaff(viewer?.role)) notFound();
   const rating = await storeRating(product.storeId);
 
   return (

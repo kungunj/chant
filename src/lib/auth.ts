@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { prisma } from "./db";
 import { getSessionUserId } from "./session";
+import { isStaff } from "./roles";
 
 export const getCurrentUser = cache(async () => {
   const id = await getSessionUserId();
@@ -21,13 +22,20 @@ export async function requireUser(next?: string) {
 /** Technicians (sellers) must have opened a store to manage listings. */
 export async function requireTechnician() {
   const user = await requireUser("/dashboard");
-  if (user.role !== "TECHNICIAN" && user.role !== "ADMIN") redirect("/dashboard/become-seller");
+  if (user.role !== "TECHNICIAN" && !isStaff(user.role)) redirect("/dashboard/become-seller");
   return user;
 }
 
 export async function requireAdmin() {
   const user = await requireUser("/admin");
-  if (user.role !== "ADMIN") redirect("/");
+  if (!isStaff(user.role)) redirect("/");
+  return user;
+}
+
+/** Only the super admin can add or remove moderators. */
+export async function requireSuperAdmin() {
+  const user = await requireUser("/admin/team");
+  if (user.role !== "SUPER_ADMIN") redirect("/admin");
   return user;
 }
 

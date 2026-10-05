@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { canAccessDispute } from "@/lib/disputes";
 import { adminIds, notify } from "@/lib/notify";
 import type { FormState } from "./types";
+import { isStaff } from "@/lib/roles";
 
 const openSchema = z.object({
   orderId: z.string(),
@@ -69,8 +70,8 @@ export async function postDisputeMessage(_: FormState, formData: FormData): Prom
   await prisma.disputeMessage.create({ data: { disputeId, authorId: user.id, body } });
   const participants = [dispute.order.buyerId, dispute.order.store.ownerId].filter((id) => id !== user.id);
   await notify(participants, {
-    title: user.role === "ADMIN" ? "Moderator message" : "New message in dispute",
-    body: `${user.role === "ADMIN" ? "Moderator" : user.name}: ${body.slice(0, 140)}`,
+    title: isStaff(user.role) ? "Moderator message" : "New message in dispute",
+    body: `${isStaff(user.role) ? "Moderator" : user.name}: ${body.slice(0, 140)}`,
     link: `/disputes/${disputeId}`,
   });
   revalidatePath(`/disputes/${disputeId}`);

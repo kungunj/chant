@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { cartCount, readCart } from "@/lib/cart";
 import { prisma } from "@/lib/db";
 import "./globals.css";
+import { isStaff } from "@/lib/roles";
 
 export const metadata: Metadata = {
   title: "SparesHub – spares and used parts for technicians",
@@ -42,7 +43,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                     Alerts
                     {unread > 0 && <span className="ml-1 rounded-full bg-red-600 px-1.5 text-xs text-white">{unread}</span>}
                   </Link>
-                  {user.role === "ADMIN" && <Link href="/admin" className="hover:text-brand-600">Admin</Link>}
+                  {isStaff(user.role) && <Link href="/admin" className="hover:text-brand-600">Admin</Link>}
                   <Link href="/dashboard" className="hover:text-brand-600">
                     {user.role === "BUYER" ? "Sell" : "My store"}
                   </Link>

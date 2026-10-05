@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { canAccessDispute } from "@/lib/disputes";
 import { escrowStatusLabels, formatKes } from "@/lib/format";
 import { AutoRefresh, MessageForm, ResolveForm } from "./DisputeClient";
+import { isStaff } from "@/lib/roles";
 
 export default async function DisputePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -19,9 +20,9 @@ export default async function DisputePage({ params }: { params: Promise<{ id: st
   if (!dispute || !canAccessDispute(user, dispute)) notFound();
 
   const { order } = dispute;
-  const isAdmin = user.role === "ADMIN";
+  const isAdmin = isStaff(user.role);
   const roleOf = (authorId: string, role: string) =>
-    role === "ADMIN" ? "Moderator" : authorId === order.buyerId ? "Buyer" : authorId === order.store.ownerId ? "Seller" : "";
+    isStaff(role) ? "Moderator" : authorId === order.buyerId ? "Buyer" : authorId === order.store.ownerId ? "Seller" : "";
   const orderLink = isAdmin || order.store.ownerId === user.id ? `/dashboard/orders/${order.id}` : `/orders/${order.id}`;
 
   return (
@@ -52,7 +53,7 @@ export default async function DisputePage({ params }: { params: Promise<{ id: st
             <div key={m.id} className={`flex ${m.author.id === user.id ? "justify-end" : ""}`}>
               <div
                 className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-                  m.author.role === "ADMIN"
+                  isStaff(m.author.role)
                     ? "border border-blue-200 bg-blue-50"
                     : m.author.id === user.id
                       ? "bg-brand-50"

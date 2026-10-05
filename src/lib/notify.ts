@@ -29,6 +29,6 @@ export async function notify(userIds: string | string[], notice: Notice) {
 }
 
 export async function adminIds() {
-  const admins = await prisma.user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
+  const admins = await prisma.user.findMany({ where: { role: { in: ["ADMIN", "SUPER_ADMIN"] } }, select: { id: true } });
   return admins.map((a) => a.id);
 }

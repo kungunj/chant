@@ -18,6 +18,11 @@ async function main() {
     create: { email: "admin@example.com", name: "SparesHub Moderator", phone: "254700000000", role: "ADMIN", passwordHash },
   });
   await prisma.user.upsert({
+    where: { email: "superadmin@example.com" },
+    update: {},
+    create: { email: "superadmin@example.com", name: "SparesHub Super Admin", phone: "254700000001", role: "SUPER_ADMIN", passwordHash },
+  });
+  await prisma.user.upsert({
     where: { email: "buyer@example.com" },
     update: {},
     create: { email: "buyer@example.com", name: "Otieno Buyer", phone: "254712345678", role: "BUYER", passwordHash },
@@ -58,7 +63,7 @@ async function main() {
       data: { ...p, storeId: store.id, partNumberKey: p.partNumber ? normalizePartNumber(p.partNumber) : null },
     });
   }
-  console.log("Seeded. Log in as tech@example.com, buyer@example.com or admin@example.com with password123");
+  console.log("Seeded. Log in as tech@example.com, buyer@example.com, admin@example.com or superadmin@example.com with password123");
 }
 
 main().finally(() => prisma.$disconnect());

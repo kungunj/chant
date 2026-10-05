@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { storeRating } from "@/lib/reviews";
 import { buildProductWhere } from "@/lib/search";
+import { isStaff } from "@/lib/roles";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ q?: string }> };
 
@@ -12,7 +13,7 @@ export default async function StorePage({ params, searchParams }: Props) {
   const [{ slug }, { q }] = await Promise.all([params, searchParams]);
   const [store, viewer] = await Promise.all([prisma.store.findUnique({ where: { slug } }), getCurrentUser()]);
   if (!store) notFound();
-  if (store.status !== "APPROVED" && viewer?.id !== store.ownerId && viewer?.role !== "ADMIN") notFound();
+  if (store.status !== "APPROVED" && viewer?.id !== store.ownerId && !isStaff(viewer?.role)) notFound();
   const [rating, reviews] = await Promise.all([
     storeRating(store.id),
     prisma.review.findMany({

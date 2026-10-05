@@ -35,8 +35,17 @@ npm run dev
 ```
 
 Demo logins after seeding (password `password123`): `tech@example.com` (approved seller),
-`buyer@example.com` (buyer) and `admin@example.com` (moderator). To make an existing account a moderator:
-`npm run make-admin -- someone@example.com`.
+`buyer@example.com` (buyer), `admin@example.com` (moderator) and `superadmin@example.com` (super admin).
+
+## Moderators and the super admin
+
+SparesHub has one **super admin** and up to **3 moderators**. Both can review stores, moderate disputes and pay
+out withdrawals. Only the super admin can add or remove moderators, at **Admin → Team**, by the email of an
+existing account. Sellers can't be moderators, since they would judge their own disputes. A removed moderator
+becomes a normal buyer account straight away.
+
+To set up the first super admin on a new database, sign up normally and then run
+`npm run make-admin -- you@example.com --super`. Without `--super` the same command adds a moderator.
 
 With `MPESA_MOCK=true` (the default in `.env.example`) checkout works without Safaricom credentials: the
 STK push is simulated and the payment succeeds a few seconds later.
