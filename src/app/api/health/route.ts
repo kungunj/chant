@@ -3,7 +3,11 @@ import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-/** Uptime check: 200 when the app can query the database, 503 with the reason when it can't. */
+/**
+ * Uptime check: `ok` says whether the app can query the database, with the reason when it can't.
+ * Always HTTP 200 so the reason is readable by tools that discard error bodies; monitors should
+ * look for `"ok":true`.
+ */
 export async function GET() {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -19,9 +23,6 @@ export async function GET() {
       .slice(-2)
       .join(" ")
       .slice(0, 300);
-    return NextResponse.json(
-      { ok: false, code: code ?? null, reason },
-      { status: 503, headers: { "Cache-Control": "no-store" } },
-    );
+    return NextResponse.json({ ok: false, code: code ?? null, reason }, { headers: { "Cache-Control": "no-store" } });
   }
 }
