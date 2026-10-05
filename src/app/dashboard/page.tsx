@@ -40,8 +40,8 @@ export default async function DashboardPage() {
         >
           {store.status === "DRAFT" && (
             <>
-              <strong>Your store is not public yet.</strong> Verify your identity so buyers can see your products.{" "}
-              <Link href="/dashboard/verification" className="font-medium underline">Upload ID documents</Link>
+              <strong>Your store is not public yet.</strong> Get verified so buyers can see your products.{" "}
+              <Link href="/dashboard/verification" className="font-medium underline">Get verified</Link>
             </>
           )}
           {store.status === "PENDING_REVIEW" && (

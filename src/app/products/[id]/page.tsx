@@ -123,7 +123,13 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           </Link>
           {product.store.location && <p className="text-stone-500">{product.store.location}</p>}
           <Stars rating={rating.average} count={rating.count} />
-          {isPublic && <p className="mt-1 text-xs text-green-700">✓ Identity verified by SparesHub</p>}
+          {isPublic && (
+            <p className="mt-1 text-xs text-green-700">
+              {product.store.sellerType === "INDIVIDUAL"
+                ? "✓ Individual seller: ID and M-Pesa name verified"
+                : "✓ Registered business, verified with the Registrar"}
+            </p>
+          )}
           <p className="mt-2 text-xs text-stone-500">
             Delivery: {product.store.postaFeeKes !== null && `Posta Kenya ${formatKes(product.store.postaFeeKes)}`}
             {product.store.postaFeeKes !== null && product.store.fargoFeeKes !== null && " · "}

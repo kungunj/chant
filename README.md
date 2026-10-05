@@ -5,8 +5,13 @@ laptops, TVs, radios, phones, car electronics and more.
 
 - **Search** by product name or part/product number. Part numbers match regardless of case, spaces or
   dashes, so `bn4400807a` finds `BN44-00807A`.
-- **Verified technician stores**: sellers open a store, upload their ID (national ID, passport or alien ID)
-  and a selfie, and a SparesHub moderator approves the store before it or its products become public.
+- **Individual sellers** can list their own used items without a registered business. They upload their ID
+  and a selfie and approve a KSh 1 M-Pesa prompt; Safaricom tells SparesHub the name the line is registered
+  in, and at least two of those names must match the names read from the ID photo.
+- **Verified business stores**: shops must be a registered business name, partnership, company or LLP.
+  Sellers enter the registration number and KRA PIN, upload the registration certificate (plus CR12 for
+  companies), their ID and a selfie. SparesHub checks the business with the Registrar (BRS) and a moderator
+  approves the store before it or its products become public.
   Sellers can post, edit and delete products while waiting.
 - **M-Pesa checkout** via Safaricom Daraja STK Push. The buyer gets a PIN prompt on their phone; the
   order is marked paid when Safaricom calls back (or when a status query confirms it).
@@ -91,6 +96,33 @@ paybill and split into one order per store, each with that store's delivery fee 
 
 On a host without a persistent private disk (Netlify, Vercel), set `STORAGE_DRIVER=database` to keep the
 files in Postgres instead, or replace the functions in `src/lib/storage.ts` with a private bucket.
+
+## Business registration checks
+
+When a seller submits, SparesHub looks the registration number up with the Business Registration Service
+through [Dojah](https://docs.dojah.io/api-reference/business-verification/lookup-kenya-business) (set
+`DOJAH_APP_ID` and `DOJAH_SECRET_KEY`). The check passes when the registered name matches the shop's business
+name (ignoring case, punctuation and "Ltd"/"Limited"), the business is active, and the seller's name is among
+its owners or directors. The moderator sees the Registrar's record and any mismatch on the review page, and can
+re-run the check. Moderators can only approve a store once the check passes or they record their own search on
+eCitizen (a CR12 company search costs KSh 650, a CR13 business-name search KSh 250). Other KYB providers
+(Prembly, QoreID, Smile ID) can be added as another `RegistryProvider` in `src/lib/business-registry`.
+
+## Individual sellers: ID and M-Pesa name check
+
+1. The seller chooses "An individual" on the verification page, uploads ID front/back and a selfie, and gives
+   the M-Pesa number registered in their name.
+2. The names on the ID photo are read automatically with Dojah's document analysis (same `DOJAH_*` keys). If
+   no reader is set up, or it misreads, the moderator types the names they see on the photo.
+3. The seller approves a KSh 1 STK prompt. When it is paid, SparesHub asks Daraja's Transaction Status API who
+   paid (`DebitPartyName`); the answer arrives at `/api/mpesa/status-result`. This needs
+   `MPESA_INITIATOR_NAME` and `MPESA_SECURITY_CREDENTIAL` from the Daraja portal.
+4. The check passes when the M-Pesa name and the ID photo names have at least two names in common (in any
+   order, ignoring case). Moderators can only approve once it passes, or after recording how they confirmed
+   the name another way.
+
+Ask Safaricom to confirm that Transaction Status returns the full payer name for your paybill; some
+accounts receive masked names, in which case moderators confirm by hand.
 
 ## Escrow, wallet and withdrawals
 

@@ -35,7 +35,11 @@ export default async function StorePage({ params, searchParams }: Props) {
       <div className="card p-6">
         <h1 className="text-2xl font-bold">{store.name}</h1>
         {store.status === "APPROVED" ? (
-          <p className="text-xs text-green-700">✓ Identity verified by SparesHub</p>
+          <p className="text-xs text-green-700">
+            {store.sellerType === "INDIVIDUAL"
+              ? "✓ Individual seller: ID and M-Pesa name verified"
+              : "✓ Registered business, verified with the Registrar"}
+          </p>
         ) : (
           <p className="text-xs text-amber-700">Preview: not visible to buyers until approved</p>
         )}

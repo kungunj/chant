@@ -176,3 +176,72 @@ export function parseStkCallback(body: unknown): StkCallback | null {
     phone: phone === undefined ? undefined : String(phone),
   };
 }
+
+/**
+ * Asks Safaricom who paid a transaction (Daraja Transaction Status API). The answer arrives
+ * asynchronously at `resultUrl`; parse it with parseTransactionStatusResult.
+ * Needs MPESA_INITIATOR_NAME and MPESA_SECURITY_CREDENTIAL (the initiator password encrypted with
+ * Safaricom's certificate, generated on the Daraja portal).
+ */
+export async function queryTransactionStatus(params: {
+  receipt: string;
+  resultUrl: string;
+  config?: MpesaConfig;
+  env?: Record<string, string | undefined>;
+}): Promise<void> {
+  const config = params.config ?? getMpesaConfig();
+  const env = params.env ?? process.env;
+  if (!env.MPESA_INITIATOR_NAME || !env.MPESA_SECURITY_CREDENTIAL) {
+    throw new Error("M-Pesa name checks need MPESA_INITIATOR_NAME and MPESA_SECURITY_CREDENTIAL");
+  }
+  const token = await getAccessToken(config);
+  const res = await fetch(`${config.baseUrl}/mpesa/transactionstatus/v1/query`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify({
+      Initiator: env.MPESA_INITIATOR_NAME,
+      SecurityCredential: env.MPESA_SECURITY_CREDENTIAL,
+      CommandID: "TransactionStatusQuery",
+      TransactionID: params.receipt,
+      PartyA: config.shortcode,
+      IdentifierType: "4",
+      ResultURL: params.resultUrl,
+      QueueTimeOutURL: params.resultUrl,
+      Remarks: "Seller name check",
+      Occasion: "NameCheck",
+    }),
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, string>;
+  if (!res.ok || body.ResponseCode !== "0") {
+    throw new Error(body.errorMessage || body.ResponseDescription || `Transaction status query failed (${res.status})`);
+  }
+}
+
+export type TransactionStatusResult = {
+  receipt?: string;
+  resultCode: number;
+  resultDesc: string;
+  /** Registered name of the M-Pesa account that paid, e.g. "JANE WANJIRU KAMAU" */
+  payerName?: string;
+};
+
+/** Parses the Transaction Status result Safaricom POSTs to the ResultURL. */
+export function parseTransactionStatusResult(body: unknown): TransactionStatusResult | null {
+  const result = (body as { Result?: Record<string, unknown> })?.Result;
+  if (!result || result.ResultCode === undefined) return null;
+  const params =
+    (result.ResultParameters as { ResultParameter?: { Key: string; Value?: string | number }[] } | undefined)
+      ?.ResultParameter ?? [];
+  const get = (key: string) => params.find((p) => p.Key === key)?.Value;
+  // DebitPartyName looks like "254712345678 - JANE WANJIRU KAMAU".
+  const debitParty = get("DebitPartyName");
+  const payerName = debitParty === undefined ? undefined : String(debitParty).split(" - ").slice(1).join(" - ").trim() || String(debitParty).trim();
+  const receipt = get("ReceiptNo");
+  return {
+    receipt: receipt === undefined ? undefined : String(receipt),
+    resultCode: Number(result.ResultCode),
+    resultDesc: String(result.ResultDesc ?? ""),
+    payerName,
+  };
+}

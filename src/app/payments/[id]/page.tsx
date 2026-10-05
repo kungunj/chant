@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { retryPayment } from "@/app/actions/checkout";
+import { retryNameCheck } from "@/app/actions/verification";
 import { SubmitButton } from "@/components/SubmitButton";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -15,10 +16,17 @@ export default async function PaymentPage({ params }: { params: Promise<{ id: st
     include: { orders: { include: { store: { select: { name: true } } } } },
   });
   if (!payment) notFound();
+  const nameCheck = payment.purpose === "NAME_CHECK";
 
   return (
     <div className="card mx-auto max-w-md space-y-4 p-6 text-center">
-      <h1 className="text-xl font-semibold">M-Pesa payment</h1>
+      <h1 className="text-xl font-semibold">{nameCheck ? "Confirm your M-Pesa name" : "M-Pesa payment"}</h1>
+      {nameCheck && (
+        <p className="text-sm text-stone-600">
+          Approve the KSh 1 prompt on your phone. Safaricom then tells us the name your M-Pesa line is registered
+          in, and we check it matches your ID.
+        </p>
+      )}
       <p className="text-3xl font-bold">{formatKes(payment.amountKes)}</p>
       <p className="text-sm text-stone-600">to be paid from {`0${payment.phone.slice(3)}`}</p>
 
@@ -36,7 +44,17 @@ export default async function PaymentPage({ params }: { params: Promise<{ id: st
 
       {payment.status === "PENDING" && <PaymentStatusPoller paymentId={payment.id} />}
 
-      {payment.status === "SUCCESS" && (
+      {payment.status === "SUCCESS" && nameCheck && (
+        <div className="space-y-3 text-sm">
+          <p className="text-stone-600">
+            Thanks. A SparesHub moderator will review your ID and M-Pesa name, and your listings go live once you are
+            approved.
+          </p>
+          <Link href="/dashboard" className="btn-primary">Back to my listings</Link>
+        </div>
+      )}
+
+      {payment.status === "SUCCESS" && !nameCheck && (
         <div className="space-y-3 text-sm">
           {payment.mpesaReceipt && (
             <p>
@@ -54,6 +72,14 @@ export default async function PaymentPage({ params }: { params: Promise<{ id: st
       {(payment.status === "FAILED" || payment.status === "CANCELLED") && (
         <div className="space-y-3 text-sm">
           {payment.resultDesc && <p className="text-stone-600">{payment.resultDesc}</p>}
+          {nameCheck && (
+            <form action={retryNameCheck} className="space-y-2">
+              <input name="mpesaPhone" defaultValue={`0${payment.phone.slice(3)}`} className="input text-center" />
+              <SubmitButton className="btn-mpesa w-full" pendingText="Sending M-Pesa prompt…">
+                Send the prompt again
+              </SubmitButton>
+            </form>
+          )}
           {payment.orders.length > 0 && (
             <form action={retryPayment} className="space-y-2">
               <input type="hidden" name="paymentId" value={payment.id} />

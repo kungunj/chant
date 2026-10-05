@@ -66,6 +66,56 @@ enum StoreDocumentKind {
   ID_BACK
   SELFIE
   BUSINESS_PERMIT
+  /// Certificate of registration (business name) or incorporation (company)
+  REGISTRATION_CERTIFICATE
+  /// CR12: official list of a company's directors and shareholders
+  CR12
+}
+
+/// A registered business (checked with the Registrar) or a private person selling their own used items
+enum SellerType {
+  BUSINESS
+  INDIVIDUAL
+}
+
+/// Does the name on the seller's M-Pesa line match the name on their ID?
+enum NameCheckStatus {
+  NOT_CHECKED
+  /// Waiting for the seller to approve the KSh 1 M-Pesa prompt, or for Safaricom's answer
+  PENDING
+  MATCHED
+  MISMATCH
+  ERROR
+  /// A moderator confirmed the M-Pesa name by hand
+  MANUALLY_VERIFIED
+}
+
+enum PaymentPurpose {
+  ORDER
+  /// KSh 1 paid by an individual seller so Safaricom tells us the M-Pesa account name
+  NAME_CHECK
+}
+
+/// How the seller's business is registered with the Business Registration Service (BRS)
+enum BusinessType {
+  BUSINESS_NAME
+  PARTNERSHIP
+  LIMITED_COMPANY
+  LLP
+}
+
+/// Result of checking the business against the Registrar (BRS)
+enum RegistryStatus {
+  NOT_CHECKED
+  /// The registry has this number, the name matches and the business is active
+  MATCHED
+  /// Found, but the name, owners or status don't match what the seller entered
+  MISMATCH
+  NOT_FOUND
+  /// The registry or provider could not be reached; try again or check by hand
+  ERROR
+  /// A moderator checked the business on eCitizen/BRS by hand
+  MANUALLY_VERIFIED
 }
 
 enum EscrowStatus {
@@ -152,21 +202,48 @@ model Store {
   createdAt   DateTime  @default(now())
 
   /// Only APPROVED stores and their products are visible to the public
-  status       StoreStatus     @default(DRAFT)
+  status    StoreStatus     @default(DRAFT)
   /// Legal name exactly as on the ID document
-  legalName    String?
-  idType       IdDocumentType?
-  idNumber     String?
-  /// KRA PIN, optional
-  kraPin       String?
-  submittedAt  DateTime?
-  reviewedAt   DateTime?
-  reviewedById String?
-  reviewedBy   User?           @relation("StoreReviewer", fields: [reviewedById], references: [id])
+  legalName String?
+  idType    IdDocumentType?
+  idNumber  String?
+  /// KRA PIN of the business (or of the owner, for a sole proprietor)
+  kraPin    String?
+
+  sellerType SellerType @default(BUSINESS)
+
+  /// Names read from the ID photo (by the ID reader, or typed by a moderator looking at the photo)
+  idNamesRead   String?
+  /// "dojah", "mock" or "moderator"
+  idNamesSource String?
+
+  /// Individual sellers: the M-Pesa line whose registered name must match their ID
+  mpesaPhone         String?
+  mpesaName          String?
+  mpesaNameStatus    NameCheckStatus @default(NOT_CHECKED)
+  mpesaNameCheckedAt DateTime?
+  nameCheckPaymentId String?         @unique
+  nameCheckPayment   Payment?        @relation("NameCheck", fields: [nameCheckPaymentId], references: [id])
+
+  /// Registered business, checked against the Registrar (BRS) before approval
+  businessType      BusinessType?
+  businessName      String?
+  /// e.g. BN-ABC1234 (business name), PVT-ABC1234 (company), LLP-ABC123
+  businessRegNo     String?
+  registryStatus    RegistryStatus  @default(NOT_CHECKED)
+  registryCheckedAt DateTime?
+  /// Which check produced registryStatus: a provider name, or "manual"
+  registrySource    String?
+  /// Details returned by the registry (name, status, owners/directors) or the moderator's note
+  registryDetails   Json?
+  submittedAt       DateTime?
+  reviewedAt        DateTime?
+  reviewedById      String?
+  reviewedBy        User?           @relation("StoreReviewer", fields: [reviewedById], references: [id])
   /// Shown to the seller when the application is rejected or the store suspended
-  reviewNote   String?
-  documents    StoreDocument[]
-  reviews      Review[]
+  reviewNote        String?
+  documents         StoreDocument[]
+  reviews           Review[]
 
   /// Delivery fee charged per order for each courier; null means the store does not ship with it
   postaFeeKes Int? @default(300)
@@ -275,20 +352,22 @@ model OrderItem {
 
 /// One M-Pesa STK Push request. A single checkout can pay for orders from several stores.
 model Payment {
-  id                String        @id @default(cuid())
+  id                String         @id @default(cuid())
   userId            String
-  user              User          @relation(fields: [userId], references: [id])
+  user              User           @relation(fields: [userId], references: [id])
   amountKes         Int
   phone             String
-  status            PaymentStatus @default(PENDING)
+  status            PaymentStatus  @default(PENDING)
   merchantRequestId String?
-  checkoutRequestId String?       @unique
+  checkoutRequestId String?        @unique
   mpesaReceipt      String?
   resultCode        Int?
   resultDesc        String?
+  purpose           PaymentPurpose @default(ORDER)
   orders            Order[]
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  nameCheckFor      Store?         @relation("NameCheck")
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 }
 
 model Shipment {

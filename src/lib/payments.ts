@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { onNameCheckPaid } from "./name-check";
 import { notify } from "./notify";
 
 /**
@@ -22,7 +23,9 @@ export async function settlePayment(params: {
   if (payment.status !== "PENDING") {
     // A status query may have settled the payment before the callback brought the receipt number.
     if (payment.status === "SUCCESS" && !payment.mpesaReceipt && params.receipt) {
-      return prisma.payment.update({ where: { id: payment.id }, data: { mpesaReceipt: params.receipt } });
+      const updated = await prisma.payment.update({ where: { id: payment.id }, data: { mpesaReceipt: params.receipt } });
+      if (payment.purpose === "NAME_CHECK") await onNameCheckPaid(payment.id, params.receipt);
+      return updated;
     }
     return payment;
   }
@@ -68,6 +71,13 @@ export async function settlePayment(params: {
     }
     return true;
   });
+
+  if (payment.purpose === "NAME_CHECK") {
+    const settled = await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } });
+    if (settled.status === "SUCCESS") await onNameCheckPaid(payment.id, settled.mpesaReceipt);
+    else await prisma.store.updateMany({ where: { nameCheckPaymentId: payment.id }, data: { mpesaNameStatus: "NOT_CHECKED" } });
+    return settled;
+  }
 
   if (settledPaid) {
     for (const order of payment.orders.filter((o) => o.status === "PENDING_PAYMENT")) {

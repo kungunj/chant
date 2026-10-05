@@ -8,10 +8,12 @@ export default async function VerificationPage() {
   return (
     <div className="card mx-auto max-w-2xl space-y-4 p-6">
       <div>
-        <h1 className="text-xl font-semibold">Verify your identity</h1>
+        <h1 className="text-xl font-semibold">Get verified to sell</h1>
         <p className="text-sm text-stone-600">
-          Buyers only see stores that SparesHub has verified. Upload your ID and a selfie; a moderator reviews them
-          and approves your store. You can post products meanwhile, and they go live once you are approved.
+          Buyers only see sellers that SparesHub has verified. Shops must be a registered business, which we check
+          with the Registrar. Individuals selling their own used items verify with their ID and an M-Pesa line in
+          their name. A moderator reviews your documents, and your listings go live once you are approved. You can
+          post products meanwhile.
         </p>
       </div>
       {store.status === "REJECTED" && store.reviewNote && (
@@ -19,7 +21,7 @@ export default async function VerificationPage() {
           Your last application was rejected: {store.reviewNote}
         </p>
       )}
-      <VerificationForm legalName={store.legalName ?? user.name} />
+      <VerificationForm legalName={store.legalName ?? user.name} phone={user.phone ? `0${user.phone.slice(3)}` : ""} />
     </div>
   );
 }

@@ -4,7 +4,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { checkStoreRegistration, getRegistryProvider } from "@/lib/business-registry";
 import { settleEscrow } from "@/lib/escrow";
+import { nameCheckStatusLabels, registryStatusLabels } from "@/lib/format";
+import { setIdNamesByModerator } from "@/lib/name-check";
 import { notify } from "@/lib/notify";
 import type { FormState } from "./types";
 
@@ -20,6 +23,16 @@ export async function reviewStore(_: FormState, formData: FormData): Promise<For
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { storeId, decision, note } = parsed.data;
   if (decision !== "APPROVE" && !note) return { error: "Tell the seller why, so they can fix it" };
+  if (decision === "APPROVE") {
+    const current = await prisma.store.findUnique({ where: { id: storeId } });
+    const ok = (s: string) => s === "MATCHED" || s === "MANUALLY_VERIFIED";
+    if (current?.status === "PENDING_REVIEW" && current.sellerType === "BUSINESS" && !ok(current.registryStatus)) {
+      return { error: "Confirm the business with the Registrar first (re-check it, or record your eCitizen search)" };
+    }
+    if (current?.status === "PENDING_REVIEW" && current.sellerType === "INDIVIDUAL" && !ok(current.mpesaNameStatus)) {
+      return { error: "The M-Pesa name must match the ID first (or record how you confirmed it)" };
+    }
+  }
 
   const allowedFrom = { APPROVE: ["PENDING_REVIEW", "SUSPENDED"], REJECT: ["PENDING_REVIEW"], SUSPEND: ["APPROVED"] } as const;
   const updated = await prisma.store.updateMany({
@@ -145,4 +158,54 @@ export async function resolveDispute(_: FormState, formData: FormData): Promise<
   });
   revalidatePath(`/disputes/${disputeId}`);
   return { ok: "Dispute resolved" };
+}
+
+export async function recheckRegistry(_: FormState, formData: FormData): Promise<FormState> {
+  await requireAdmin();
+  const storeId = String(formData.get("storeId") ?? "");
+  if (!getRegistryProvider()) return { error: "No registry provider is set up. Check the business on eCitizen and record it below." };
+  const status = await checkStoreRegistration(storeId);
+  revalidatePath(`/admin/stores/${storeId}`);
+  return { ok: registryStatusLabels[status] };
+}
+
+export async function markRegistryVerified(_: FormState, formData: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+  const storeId = String(formData.get("storeId") ?? "");
+  const note = String(formData.get("note") ?? "").trim();
+  if (note.length < 5) return { error: "Write what you checked, e.g. the eCitizen CR12/CR13 search reference" };
+  await prisma.store.update({
+    where: { id: storeId },
+    data: {
+      registryStatus: "MANUALLY_VERIFIED",
+      registryCheckedAt: new Date(),
+      registrySource: "manual",
+      registryDetails: { note: note.slice(0, 500), checkedBy: admin.name },
+    },
+  });
+  revalidatePath(`/admin/stores/${storeId}`);
+  return { ok: "Recorded as checked on BRS" };
+}
+
+export async function markMpesaNameVerified(_: FormState, formData: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+  const storeId = String(formData.get("storeId") ?? "");
+  const note = String(formData.get("note") ?? "").trim();
+  if (note.length < 5) return { error: "Write how you confirmed the M-Pesa name" };
+  await prisma.store.update({
+    where: { id: storeId },
+    data: { mpesaNameStatus: "MANUALLY_VERIFIED", mpesaNameCheckedAt: new Date(), reviewNote: `M-Pesa name confirmed by ${admin.name}: ${note.slice(0, 300)}` },
+  });
+  revalidatePath(`/admin/stores/${storeId}`);
+  return { ok: "M-Pesa name recorded as confirmed" };
+}
+
+export async function setIdNames(_: FormState, formData: FormData): Promise<FormState> {
+  await requireAdmin();
+  const storeId = String(formData.get("storeId") ?? "");
+  const names = String(formData.get("names") ?? "").trim().replace(/\s+/g, " ");
+  if (names.split(" ").length < 2) return { error: "Type all the names exactly as they appear on the ID photo" };
+  const status = await setIdNamesByModerator(storeId, names);
+  revalidatePath(`/admin/stores/${storeId}`);
+  return { ok: status ? nameCheckStatusLabels[status] : "Saved. The check runs once the seller pays the KSh 1 prompt." };
 }
