@@ -11,7 +11,10 @@ export async function GET() {
   try {
     // Imported here so a Prisma engine that fails to load is reported too, not just a failed query.
     const { prisma } = await import("@/lib/db");
-    await prisma.$queryRaw`SELECT 1`;
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("No answer from the database within 8 seconds")), 8000),
+    );
+    await Promise.race([prisma.$queryRaw`SELECT 1`, timeout]);
     return NextResponse.json({ ok: true });
   } catch (error) {
     const code = (error as { errorCode?: string; code?: string }).errorCode ?? (error as { code?: string }).code;
