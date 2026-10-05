@@ -208,6 +208,10 @@ Any Node host with PostgreSQL works (Railway, Render, a VPS, or Netlify/Vercel w
 `npm run build && npm start`. CI (`.github/workflows/ci.yml`) runs lint, type checks, unit tests and a build
 against Postgres on every pull request.
 
+After deploying, `/api/health` returns `{"ok":true}` when the app can query the database (or the reason it
+can't), and `/api/health/setup` shows whether `DATABASE_URL` and `AUTH_SECRET` are set. On Netlify, a change
+to environment variables only takes effect after the next deploy.
+
 ## Not built yet
 
 - Automatic M-Pesa B2C payouts: withdrawals are paid by a moderator from the M-Pesa business account and
