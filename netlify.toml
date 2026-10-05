@@ -4,3 +4,8 @@
 
 [build.environment]
   NODE_VERSION = "22"
+
+# Runs the Next.js app as Netlify Functions (server pages, server actions, API routes, middleware).
+# Without it Netlify only uploads static files and every page that needs the server fails.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
