@@ -13,6 +13,7 @@ export function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline'",
     // Sellers may link product photos hosted elsewhere over https.
     "img-src 'self' data: blob: https:",
+    "media-src 'self' blob:",
     "font-src 'self'",
     "connect-src 'self'",
     "object-src 'none'",

@@ -12,6 +12,7 @@ export type SearchParams = {
   storeId?: string;
   minPriceKes?: number;
   maxPriceKes?: number;
+  withVideo?: boolean;
 };
 
 /**
@@ -24,6 +25,7 @@ export function buildProductWhere(params: SearchParams): Prisma.ProductWhereInpu
   if (params.category) where.category = params.category;
   if (params.condition) where.condition = params.condition;
   if (params.storeId) where.storeId = params.storeId;
+  if (params.withVideo) where.videoUrl = { not: null };
   if (params.minPriceKes || params.maxPriceKes) {
     where.priceKes = {
       ...(params.minPriceKes ? { gte: params.minPriceKes } : {}),

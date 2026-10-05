@@ -17,7 +17,8 @@ export default async function SearchPage({ searchParams }: Props) {
   const price = (v: string | undefined) => (Number(v) > 0 ? Math.floor(Number(v)) : undefined);
   const minPriceKes = price(sp.min);
   const maxPriceKes = price(sp.max);
-  const where = buildProductWhere({ q: sp.q, category, condition, minPriceKes, maxPriceKes });
+  const withVideo = sp.video === "1";
+  const where = buildProductWhere({ q: sp.q, category, condition, minPriceKes, maxPriceKes, withVideo });
   const orderBy =
     sp.sort === "price_asc"
       ? { priceKes: "asc" as const }
@@ -76,6 +77,9 @@ export default async function SearchPage({ searchParams }: Props) {
               <input name="max" type="number" min={0} placeholder="Max" defaultValue={maxPriceKes} className="input" aria-label="Maximum price" />
             </div>
           </fieldset>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" name="video" value="1" defaultChecked={withVideo} /> Only items with a video
+          </label>
           <div>
             <label className="label" htmlFor="sort">Sort</label>
             <select id="sort" name="sort" defaultValue={sp.sort ?? ""} className="input">

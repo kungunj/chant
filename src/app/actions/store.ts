@@ -9,7 +9,17 @@ import { formatKes } from "@/lib/format";
 import { notify } from "@/lib/notify";
 import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 import { normalizePartNumber } from "@/lib/search";
-import { MAX_PHOTO_BYTES, deleteProductPhoto, saveProductPhoto, sniffMimeType } from "@/lib/storage";
+import { checkConditionDetails } from "@/lib/listing";
+import {
+  MAX_PHOTO_BYTES,
+  MAX_VIDEO_BYTES,
+  deleteProductPhoto,
+  deleteProductVideo,
+  saveProductPhoto,
+  saveProductVideo,
+  sniffMimeType,
+  sniffVideoType,
+} from "@/lib/storage";
 import type { FormState } from "./types";
 
 const MAX_PHOTOS = 8;
@@ -76,6 +86,8 @@ const productSchema = z.object({
   category: z.enum(["LAPTOP", "DESKTOP", "PHONE", "TV", "RADIO", "AUDIO", "CAR", "APPLIANCE", "OTHER"]),
   condition: z.enum(["NEW_SPARE", "USED_WORKING", "USED_FOR_PARTS", "REFURBISHED"]),
   description: z.string().trim().max(4000).optional(),
+  workingParts: z.string().trim().max(1000).optional(),
+  faultyParts: z.string().trim().max(1000).optional(),
   priceKes: z.coerce.number().int("Price must be whole shillings").min(1, "Price must be at least KSh 1").max(10_000_000),
   stock: z.coerce.number().int().min(0).max(10_000),
   imageUrls: z.string().optional(),
@@ -87,6 +99,8 @@ export async function saveProduct(_: FormState, formData: FormData): Promise<For
   const parsed = productSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { id, imageUrls, ...fields } = parsed.data;
+  const conditionProblem = checkConditionDetails(fields.condition, fields.workingParts, fields.faultyParts);
+  if (conditionProblem) return { error: conditionProblem };
 
   const links = (imageUrls ?? "")
     .split(/\s+|,/)
@@ -98,6 +112,16 @@ export async function saveProduct(_: FormState, formData: FormData): Promise<For
   if (id && !existing) return { error: "Listing not found" };
   const keep = new Set(formData.getAll("keepImage").map(String));
   const kept = (existing?.imageUrls ?? []).filter((u) => u.startsWith("/api/images/") && keep.has(u));
+
+  const video = formData.get("video");
+  let videoUpload: { bytes: Uint8Array; mimeType: string } | null = null;
+  if (video instanceof File && video.size > 0) {
+    if (video.size > MAX_VIDEO_BYTES) return { error: "The video is larger than 25 MB. Keep it under a minute." };
+    const bytes = new Uint8Array(await video.arrayBuffer());
+    const mimeType = sniffVideoType(bytes);
+    if (!mimeType) return { error: "The video must be MP4, WebM or MOV (a normal phone recording)" };
+    videoUpload = { bytes, mimeType };
+  }
 
   const files = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
   if (kept.length + files.length + links.length > MAX_PHOTOS) return { error: `A listing can have at most ${MAX_PHOTOS} photos` };
@@ -114,6 +138,8 @@ export async function saveProduct(_: FormState, formData: FormData): Promise<For
     }
   }
   const urls = [...kept, ...uploaded, ...links];
+  const keepVideo = existing?.videoUrl && formData.get("keepVideo") === "on" && !videoUpload ? existing.videoUrl : null;
+  const videoUrl = videoUpload ? await saveProductVideo(videoUpload.bytes, videoUpload.mimeType) : keepVideo;
 
   const data = {
     ...fields,
@@ -122,7 +148,10 @@ export async function saveProduct(_: FormState, formData: FormData): Promise<For
     brand: fields.brand || null,
     modelName: fields.modelName || null,
     description: fields.description || null,
+    workingParts: fields.condition === "NEW_SPARE" ? fields.workingParts || null : fields.workingParts!,
+    faultyParts: fields.condition === "NEW_SPARE" ? fields.faultyParts || null : fields.faultyParts!,
     imageUrls: urls,
+    videoUrl,
   };
 
   if (id) {
@@ -130,6 +159,7 @@ export async function saveProduct(_: FormState, formData: FormData): Promise<For
     if (updated.count === 0) return { error: "Listing not found" };
     const removed = (existing?.imageUrls ?? []).filter((u) => !urls.includes(u));
     await Promise.all(removed.map(deleteProductPhoto));
+    if (existing?.videoUrl && existing.videoUrl !== videoUrl) await deleteProductVideo(existing.videoUrl);
     if (existing && data.priceKes < existing.priceKes) await notifyPriceDrop(id, existing.priceKes, data.priceKes);
   } else {
     await prisma.product.create({ data: { ...data, storeId: store.id } });

@@ -111,3 +111,38 @@ export async function deleteProductPhoto(url: string) {
   if (!photoKey.test(key)) return;
   await remove(key, true);
 }
+
+/** Short clips showing an item working. Stored as uploaded (no re-encoding); MP4, WebM or MOV. */
+export const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+export const MAX_VIDEO_SECONDS = 60;
+
+const videoExtensions: Record<string, string> = { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" };
+
+export function sniffVideoType(bytes: Uint8Array): string | null {
+  if (bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3) return "video/webm";
+  if (String.fromCharCode(...bytes.slice(4, 8)) === "ftyp") {
+    return String.fromCharCode(...bytes.slice(8, 12)) === "qt  " ? "video/quicktime" : "video/mp4";
+  }
+  return null;
+}
+
+export async function saveProductVideo(bytes: Uint8Array, mimeType: string): Promise<string> {
+  const key = `${randomUUID()}.${videoExtensions[mimeType]}`;
+  await put(key, bytes, mimeType, true);
+  return `/api/videos/${key}`;
+}
+
+const videoKey = /^[0-9a-f-]{36}\.(mp4|webm|mov)$/;
+
+export async function readProductVideo(key: string): Promise<{ bytes: Buffer; mimeType: string }> {
+  if (!videoKey.test(key)) throw new Error("Bad video key");
+  const ext = key.split(".").pop()!;
+  const mimeType = Object.entries(videoExtensions).find(([, e]) => e === ext)![0];
+  return { bytes: await get(key, true), mimeType };
+}
+
+export async function deleteProductVideo(url: string) {
+  const key = url.startsWith("/api/videos/") ? url.slice("/api/videos/".length) : "";
+  if (!videoKey.test(key)) return;
+  await remove(key, true);
+}

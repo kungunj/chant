@@ -286,6 +286,12 @@ model Product {
   priceKes      Int
   stock         Int            @default(1)
   imageUrls     String[]
+  /// What was tested and works, e.g. "Board powers on, HDMI and tuner work"
+  workingParts  String?
+  /// What does not work or is missing, e.g. "Screen broken", or "None" when everything works
+  faultyParts   String?
+  /// Short clip showing the item working, served from /api/videos/[key]
+  videoUrl      String?
   /// Soft delete so that past orders keep their product reference
   deletedAt     DateTime?
   createdAt     DateTime       @default(now())

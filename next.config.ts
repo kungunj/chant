@@ -12,8 +12,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   experimental: {
-    // Largest forms: 8 product photos or 4 ID documents, 5 MB each.
-    serverActions: { bodySizeLimit: "42mb" },
+    // Largest form: a listing with 8 photos (5 MB each) and a 25 MB video.
+    serverActions: { bodySizeLimit: "70mb" },
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

@@ -38,3 +38,9 @@ describe("price range", () => {
     expect(buildProductWhere({}).priceKes).toBeUndefined();
   });
 });
+
+describe("video filter", () => {
+  it("keeps only listings with a video", () => {
+    expect(buildProductWhere({ withVideo: true }).videoUrl).toEqual({ not: null });
+  });
+});

@@ -176,6 +176,16 @@ Forgotten passwords are reset with a 6-digit code sent by SMS to the phone on th
 5 tries, 3 codes an hour), so SMS must be configured in production for password reset to work. Logins
 lock for 15 minutes after 8 wrong passwords for an email.
 
+## Item condition and videos
+
+Used and for-parts listings must say what works and what doesn't, e.g. "Board powers on, HDMI works" and
+"Screen broken". Items sold for parts can't say "None" under faults. New spares skip both fields.
+
+Sellers can add a clip of the item working (MP4, WebM or MOV, up to 1 minute and 25 MB). Listings with a
+clip get a ▶ Video badge, and search has an "Only items with a video" filter. Clips are stored like photos
+and served from `/api/videos/...` with range requests so they can be seeked. Netlify functions accept
+requests of about 6 MB, so use a host without that limit, or object storage, before allowing large clips.
+
 ## Photos and files
 
 Product photos are re-encoded to WebP at most 1600px with [sharp](https://sharp.pixelplumbing.com), which

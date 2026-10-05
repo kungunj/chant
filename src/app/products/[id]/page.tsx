@@ -10,6 +10,7 @@ import { Stars } from "@/components/Stars";
 import { prisma } from "@/lib/db";
 import { storeRating } from "@/lib/reviews";
 import { categoryLabels, conditionLabels, formatKes } from "@/lib/format";
+import { hasNoFaults } from "@/lib/listing";
 import { isStaff } from "@/lib/roles";
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
@@ -23,7 +24,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   if (!isPublic && viewer?.id !== product.store.ownerId && !isStaff(viewer?.role)) notFound();
   const [rating, saved, similar] = await Promise.all([
     storeRating(product.storeId),
-    viewer ? prisma.savedItem.findUnique({ where: { userId_productId: { userId: viewer.id, productId: product.id } } }) : null,
+    viewer
+      ? prisma.savedItem.findUnique({ where: { userId_productId: { userId: viewer.id, productId: product.id } } })
+      : null,
     isPublic
       ? prisma.product.findMany({
           where: {
@@ -33,7 +36,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             store: { status: "APPROVED" },
             OR: [
               ...(product.partNumberKey ? [{ partNumberKey: product.partNumberKey }] : []),
-              ...(product.modelName ? [{ modelName: { equals: product.modelName, mode: "insensitive" as const } }] : []),
+              ...(product.modelName
+                ? [{ modelName: { equals: product.modelName, mode: "insensitive" as const } }]
+                : []),
               { category: product.category, ...(product.brand ? { brand: product.brand } : {}) },
             ],
           },
@@ -48,7 +53,12 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     <div className="grid gap-8 md:grid-cols-2">
       {isPublic && (
         <TrackView
-          item={{ id: product.id, title: product.title, priceKes: product.priceKes, image: product.imageUrls[0] ?? null }}
+          item={{
+            id: product.id,
+            title: product.title,
+            priceKes: product.priceKes,
+            image: product.imageUrls[0] ?? null,
+          }}
         />
       )}
       <ProductGallery urls={product.imageUrls} title={product.title} />
@@ -98,8 +108,18 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <form action={addToCart} className="flex items-end gap-3">
             <input type="hidden" name="productId" value={product.id} />
             <div className="w-24">
-              <label className="label" htmlFor="quantity">Quantity</label>
-              <input id="quantity" name="quantity" type="number" min={1} max={product.stock} defaultValue={1} className="input" />
+              <label className="label" htmlFor="quantity">
+                Quantity
+              </label>
+              <input
+                id="quantity"
+                name="quantity"
+                type="number"
+                min={1}
+                max={product.stock}
+                defaultValue={1}
+                className="input"
+              />
             </div>
             <button className="btn-accent">Add to cart</button>
           </form>
@@ -112,6 +132,42 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             <input type="hidden" name="productId" value={product.id} />
             <button className="btn-secondary">{saved ? "♥ Saved" : "♡ Save for later"}</button>
           </form>
+        )}
+
+        {(product.workingParts || product.faultyParts) && (
+          <div className="grid gap-3 text-sm sm:grid-cols-2">
+            {product.workingParts && (
+              <div className="rounded-md border border-green-200 bg-green-50 p-3">
+                <p className="font-medium text-green-800">✓ What works</p>
+                <p className="whitespace-pre-line text-green-900">{product.workingParts}</p>
+              </div>
+            )}
+            {product.faultyParts && (
+              <div
+                className={`rounded-md border p-3 ${hasNoFaults(product.faultyParts) ? "border-stone-200 bg-stone-50" : "border-red-200 bg-red-50"}`}
+              >
+                <p className={`font-medium ${hasNoFaults(product.faultyParts) ? "text-stone-700" : "text-red-800"}`}>
+                  ✗ What doesn&apos;t work
+                </p>
+                <p className="whitespace-pre-line">
+                  {hasNoFaults(product.faultyParts) ? "No known faults" : product.faultyParts}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {product.videoUrl && (
+          <div className="space-y-1">
+            <p className="text-sm font-medium">▶ Video of it working</p>
+            <video
+              src={product.videoUrl}
+              controls
+              playsInline
+              preload="metadata"
+              className="w-full rounded-md bg-black"
+            />
+          </div>
         )}
 
         {product.description && <p className="whitespace-pre-line text-sm text-stone-700">{product.description}</p>}

@@ -5,7 +5,10 @@ import { conditionLabels, formatKes } from "@/lib/format";
 export function ProductCard({ product, storeName }: { product: Product; storeName?: string }) {
   return (
     <Link href={`/products/${product.id}`} className="card group flex flex-col overflow-hidden hover:shadow-md">
-      <div className="aspect-square bg-stone-100">
+      <div className="relative aspect-square bg-stone-100">
+        {product.videoUrl && (
+          <span className="absolute top-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">▶ Video</span>
+        )}
         {product.imageUrls[0] ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={product.imageUrls[0]} alt={product.title} className="h-full w-full object-cover" />
