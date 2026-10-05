@@ -14,8 +14,8 @@ laptops, TVs, radios, phones, car electronics and more.
   buyer confirms they received the item. Sellers withdraw their wallet balance to M-Pesa.
 - **Disputes with a moderator**: buyer or seller can open a dispute while money is in escrow. That opens a
   three-way chat with a moderator, who decides how much to refund the buyer and how much to release.
-- **Delivery** by Posta Kenya or Fargo Courier, with per-store delivery fees, a tracking timeline and a
-  public "Track parcel" page.
+- **Delivery** by Posta Kenya or Fargo Courier, with per-store delivery fees and a tracking timeline. The
+  "Track parcel" page needs a sign-in and shows only your own parcels, as buyer or seller.
 - **Product photos** uploaded from the phone (resized, location data stripped), reviews and star ratings
   for stores, cancellations with automatic refunds, in-app and SMS notifications, and password reset by
   SMS code.
@@ -130,7 +130,7 @@ Neither Posta Kenya nor Fargo Courier publishes an open tracking API, so trackin
 - `src/lib/couriers` is pluggable. If you get API access from either courier, set
   `POSTA_TRACKING_API_URL` / `FARGO_TRACKING_API_URL` (and the matching `_API_KEY`) and adjust `parse` in
   `src/lib/couriers/http.ts` to their response format. Shipments then sync automatically (at most every
-  10 minutes, when the order or track page is viewed) and free-text statuses are mapped onto ours.
+  10 minutes, when the order or Track parcel page is viewed) and free-text statuses are mapped onto ours.
 
 ## Notifications
 
