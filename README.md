@@ -90,9 +90,13 @@ paybill and split into one order per store, each with that store's delivery fee 
 2. They upload ID front, ID back (not for passports), a selfie holding the ID and optionally a business
    permit. Files are checked by their actual content (JPG, PNG, WebP or PDF, max 5 MB each) and stored
    privately in `UPLOAD_DIR`, never under `public/`. Only the store owner and moderators can open them.
-3. Moderators see the queue at **Admin → Store approvals**, view the documents and approve or reject with a
-   note. A rejected seller sees the note and can resubmit. Approved stores can later be suspended, which
-   hides them and their products immediately.
+3. The seller pays a registration fee of `SELLER_REGISTRATION_FEE_KES` (default KSh 100) by M-Pesa STK push.
+4. **Automatic approval:** once the fee is paid, the store is approved with no moderator if the Registrar's
+   record matches (businesses) or the M-Pesa name matches the ID (individuals). Moderators are told, and can
+   still suspend it. Nobody compares the selfie with the ID in that case.
+5. Anything that doesn't match goes to **Admin → Store approvals**, where moderators view the documents and
+   approve or reject with a note. A rejected seller sees the note and can resubmit without paying again.
+   Approved stores can later be suspended, which hides them and their products immediately.
 
 On a host without a persistent private disk (Netlify, Vercel), set `STORAGE_DRIVER=database` to keep the
 files in Postgres instead, or replace the functions in `src/lib/storage.ts` with a private bucket.
@@ -114,12 +118,12 @@ eCitizen (a CR12 company search costs KSh 650, a CR13 business-name search KSh 2
    the M-Pesa number registered in their name.
 2. The names on the ID photo are read automatically with Dojah's document analysis (same `DOJAH_*` keys). If
    no reader is set up, or it misreads, the moderator types the names they see on the photo.
-3. The seller approves a KSh 1 STK prompt. When it is paid, SparesHub asks Daraja's Transaction Status API who
+3. The seller pays the registration fee from that line. When it is paid, SparesHub asks Daraja's Transaction Status API who
    paid (`DebitPartyName`); the answer arrives at `/api/mpesa/status-result`. This needs
    `MPESA_INITIATOR_NAME` and `MPESA_SECURITY_CREDENTIAL` from the Daraja portal.
 4. The check passes when the M-Pesa name and the ID photo names have at least two names in common (in any
-   order, ignoring case). Moderators can only approve once it passes, or after recording how they confirmed
-   the name another way.
+   order, ignoring case), and the store is then approved automatically. Otherwise moderators can only approve
+   after recording how they confirmed the name another way. Trying a different line costs KSh 1.
 
 Ask Safaricom to confirm that Transaction Status returns the full payer name for your paybill; some
 accounts receive masked names, in which case moderators confirm by hand.
@@ -135,7 +139,10 @@ accounts receive masked names, in which case moderators confirm by hand.
   from any scheduler; `vercel.json` schedules it on Vercel (Hobby plans only allow daily crons).
 - Paid orders that have not shipped can be cancelled by the buyer or the seller, refunding the buyer in
   full to their wallet and returning the stock.
-- Released money (minus `PLATFORM_COMMISSION_PERCENT`, default 0) is credited to the seller's wallet.
+- Buyers see and pay the seller's price plus `PLATFORM_MARKUP_PERCENT` (default 5%, rounded up to whole
+  shillings, not charged on delivery). When escrow is released the seller's wallet gets their own price plus
+  delivery, and SparesHub keeps the markup. A full refund returns the markup too; a split dispute keeps the
+  same share of the markup as the seller gets of the order.
   The wallet is an append-only ledger, so every shilling has an entry tied to an order or withdrawal.
 - Sellers (and buyers with refunds) request a withdrawal to M-Pesa from **Wallet**. Moderators pay it out
   at **Admin → Withdrawals** and record the M-Pesa transaction code, or reject it, which returns the money

@@ -9,7 +9,7 @@ import { businessTypeLabels, idTypeLabels } from "@/lib/format";
 
 const accept = "image/jpeg,image/png,image/webp,application/pdf";
 
-export function VerificationForm({ legalName, phone }: { legalName: string; phone: string }) {
+export function VerificationForm({ legalName, phone, feeKes }: { legalName: string; phone: string; feeKes: number }) {
   const [sellerType, setSellerType] = useState<"BUSINESS" | "INDIVIDUAL">("BUSINESS");
   const [idType, setIdType] = useState("NATIONAL_ID");
   const [businessType, setBusinessType] = useState<keyof typeof businessTypeLabels>("BUSINESS_NAME");
@@ -120,6 +120,12 @@ export function VerificationForm({ legalName, phone }: { legalName: string; phon
             We check these details with the Business Registration Service (Registrar of Companies). You must be one of
             the registered owners or directors.
           </p>
+          <div className="sm:w-1/2">
+            <label className="label" htmlFor="mpesaPhone">
+              M-Pesa number to pay the registration fee
+            </label>
+            <input id="mpesaPhone" name="mpesaPhone" defaultValue={phone} required className="input" />
+          </div>
         </>
       ) : (
         <>
@@ -139,8 +145,8 @@ export function VerificationForm({ legalName, phone }: { legalName: string; phon
             </div>
           </div>
           <p className="text-xs text-stone-500">
-            After you submit, approve a KSh 1 M-Pesa prompt. Safaricom tells us the name the line is registered in, and
-            it must match the name on your ID.
+            The registration fee is paid from this line. Safaricom tells us the name it is registered in, and at least
+            two of those names must match the names on your ID.
           </p>
         </>
       )}
@@ -216,7 +222,12 @@ export function VerificationForm({ legalName, phone }: { legalName: string; phon
       <p className="text-xs text-stone-500">
         JPG, PNG, WebP or PDF, up to 5 MB each. Documents are stored privately and only seen by SparesHub moderators.
       </p>
-      <SubmitButton pendingText="Uploading…">Submit for approval</SubmitButton>
+      <p className="rounded-md bg-brand-50 p-3 text-sm text-brand-700">
+        Registration costs <strong>KSh {feeKes.toLocaleString("en-KE")}</strong>, paid by M-Pesa when you submit. If
+        your details match {sellerType === "BUSINESS" ? "the Registrar's records" : "your M-Pesa name"}, your store is
+        approved straight away.
+      </p>
+      <SubmitButton pendingText="Uploading…">Submit and pay KSh {feeKes.toLocaleString("en-KE")}</SubmitButton>
     </ActionForm>
   );
 }

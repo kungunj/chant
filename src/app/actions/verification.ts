@@ -8,11 +8,10 @@ import { requireStore } from "@/lib/auth";
 import { checkStoreRegistration } from "@/lib/business-registry";
 import { isValidRegNo, normalizeRegNo, regNoExamples } from "@/lib/business-registry/match";
 import { prisma } from "@/lib/db";
-import { adminIds, notify } from "@/lib/notify";
 import { readIdNames } from "@/lib/id-reader";
-import { startNameCheck } from "@/lib/name-check";
+import { finishBusinessCheck, startNameCheck } from "@/lib/name-check";
 import { normalizeKenyanPhone } from "@/lib/phone";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 import { MAX_DOCUMENT_BYTES, deletePrivateFile, savePrivateFile, sniffMimeType } from "@/lib/storage";
 import type { FormState } from "./types";
 
@@ -25,7 +24,10 @@ const kraPin = z
 const identity = {
   legalName: z.string().trim().min(3, "Enter your full name as it appears on your ID").max(100),
   idType: z.enum(["NATIONAL_ID", "PASSPORT", "ALIEN_ID"]),
-  idNumber: z.string().trim().regex(/^[A-Za-z0-9]{5,20}$/, "Enter a valid ID or passport number"),
+  idNumber: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9]{5,20}$/, "Enter a valid ID or passport number"),
 };
 
 const schema = z.discriminatedUnion("sellerType", [
@@ -38,6 +40,7 @@ const schema = z.discriminatedUnion("sellerType", [
     }),
     businessName: z.string().trim().min(3, "Enter the business name exactly as registered").max(150),
     businessRegNo: z.string().trim().transform(normalizeRegNo),
+    mpesaPhone: z.string().trim(),
   }),
   z.object({
     sellerType: z.literal("INDIVIDUAL"),
@@ -53,7 +56,12 @@ const fileFields: { field: string; kind: StoreDocumentKind; label: string; requi
   { field: "idFront", kind: "ID_FRONT", label: "your ID (front)", required: () => true },
   { field: "idBack", kind: "ID_BACK", label: "your ID (back)", required: (d) => d.idType !== "PASSPORT" },
   { field: "selfie", kind: "SELFIE", label: "your face holding your ID", required: () => true },
-  { field: "certificate", kind: "REGISTRATION_CERTIFICATE", label: "the registration certificate", required: isBusiness },
+  {
+    field: "certificate",
+    kind: "REGISTRATION_CERTIFICATE",
+    label: "the registration certificate",
+    required: isBusiness,
+  },
   {
     field: "cr12",
     kind: "CR12",
@@ -74,10 +82,16 @@ export async function submitVerification(_: FormState, formData: FormData): Prom
   if (data.sellerType === "BUSINESS" && !isValidRegNo(data.businessType, data.businessRegNo)) {
     return { error: `Enter the registration number from your certificate, e.g. ${regNoExamples[data.businessType]}` };
   }
-  const mpesaPhone = data.sellerType === "INDIVIDUAL" ? normalizeKenyanPhone(data.mpesaPhone) : null;
-  if (data.sellerType === "INDIVIDUAL" && !mpesaPhone) {
-    return { error: "Enter the M-Pesa number registered in your name, e.g. 0712 345 678" };
+  const payPhone = normalizeKenyanPhone(data.mpesaPhone);
+  if (!payPhone) {
+    return {
+      error:
+        data.sellerType === "INDIVIDUAL"
+          ? "Enter the M-Pesa number registered in your name, e.g. 0712 345 678"
+          : "Enter the M-Pesa number to pay the registration fee from, e.g. 0712 345 678",
+    };
   }
+  if (!(await rateLimit(`stk:${user.id}`, 6, 10 * 60 * 1000))) return { error: TOO_MANY };
 
   const uploads: { kind: StoreDocumentKind; name: string; bytes: Uint8Array; mimeType: string }[] = [];
   for (const { field, kind, label, required } of fileFields) {
@@ -96,7 +110,13 @@ export async function submitVerification(_: FormState, formData: FormData): Prom
   const old = await prisma.storeDocument.findMany({ where: { storeId: store.id } });
   const saved = [];
   for (const u of uploads) {
-    saved.push({ kind: u.kind, fileName: u.name, mimeType: u.mimeType, sizeBytes: u.bytes.length, storageKey: await savePrivateFile(u.bytes, u.mimeType) });
+    saved.push({
+      kind: u.kind,
+      fileName: u.name,
+      mimeType: u.mimeType,
+      sizeBytes: u.bytes.length,
+      storageKey: await savePrivateFile(u.bytes, u.mimeType),
+    });
   }
 
   await prisma.$transaction([
@@ -114,7 +134,7 @@ export async function submitVerification(_: FormState, formData: FormData): Prom
         businessRegNo: data.sellerType === "BUSINESS" ? data.businessRegNo : null,
         idNamesRead: null,
         idNamesSource: null,
-        mpesaPhone,
+        mpesaPhone: data.sellerType === "INDIVIDUAL" ? payPhone : null,
         mpesaName: null,
         mpesaNameStatus: "NOT_CHECKED",
         mpesaNameCheckedAt: null,
@@ -133,26 +153,28 @@ export async function submitVerification(_: FormState, formData: FormData): Prom
   revalidatePath("/dashboard");
   await readIdNames(store.id);
 
-  if (data.sellerType === "INDIVIDUAL" && mpesaPhone) {
-    // KSh 1 M-Pesa prompt: once paid, Safaricom tells us the account name to compare with the ID.
-    const payment = await startNameCheck(store.id, user.id, mpesaPhone);
-    redirect(`/payments/${payment.id}`);
+  // Businesses are checked with the Registrar now; the store is approved automatically once the
+  // fee is paid if the record matches. Individuals are matched on the M-Pesa name after paying.
+  if (data.sellerType === "BUSINESS") {
+    await checkStoreRegistration(store.id);
+    // Resubmitting after a rejection: the fee was already paid.
+    if (store.registrationFeePaidAt) {
+      await finishBusinessCheck(store.id);
+      redirect("/dashboard");
+    }
   }
-
-  // Check the business with the Registrar now, so the moderator sees the result straight away.
-  await checkStoreRegistration(store.id);
-  await notify(await adminIds(), {
-    title: "Store waiting for approval",
-    body: `${store.name} submitted identity and business documents for review.`,
-    link: `/admin/stores/${store.id}`,
-  });
-  redirect("/dashboard");
+  const payment = await startNameCheck(store.id, user.id, payPhone);
+  redirect(`/payments/${payment.id}`);
 }
 
-/** Sends the KSh 1 name-check prompt again (cancelled, failed, or a different number). */
+/**
+ * Sends the registration fee prompt again (cancelled or failed), or for an individual seller a KSh 1
+ * prompt from a different line whose name matches their ID.
+ */
 export async function retryNameCheck(formData: FormData) {
   const { user, store } = await requireStore();
-  if (store.sellerType !== "INDIVIDUAL" || store.status !== "PENDING_REVIEW") redirect("/dashboard");
+  if (store.status !== "PENDING_REVIEW") redirect("/dashboard");
+  if (store.sellerType === "BUSINESS" && store.registrationFeePaidAt) redirect("/dashboard");
   const phone = normalizeKenyanPhone(String(formData.get("mpesaPhone") ?? "")) ?? store.mpesaPhone;
   if (!phone || !(await rateLimit(`stk:${user.id}`, 6, 10 * 60 * 1000))) redirect("/dashboard");
   const payment = await startNameCheck(store.id, user.id, phone);

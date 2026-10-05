@@ -1,21 +1,49 @@
 import { describe, expect, it } from "vitest";
 import { canAccessDispute } from "@/lib/disputes";
 import { commissionFor } from "@/lib/escrow";
+import { buyerPrice, markupFor, markupPercent, sellerPriceAtLeast, sellerPriceAtMost } from "@/lib/pricing";
 import { sniffMimeType } from "@/lib/storage";
 
 describe("commissionFor", () => {
-  it("is zero when no commission is configured", () => {
-    expect(commissionFor(5000, 0)).toBe(0);
-    expect(commissionFor(5000, NaN)).toBe(0);
+  const order = { totalKes: 2400, markupKes: 100 };
+
+  it("keeps the whole markup when the seller gets the whole order", () => {
+    expect(commissionFor(order, 2400)).toBe(100);
   });
 
-  it("rounds down to whole shillings", () => {
-    expect(commissionFor(999, 5)).toBe(49);
-    expect(commissionFor(2000, 2.5)).toBe(50);
+  it("keeps nothing when the buyer is refunded in full", () => {
+    expect(commissionFor(order, 0)).toBe(0);
   });
 
-  it("never exceeds the amount", () => {
-    expect(commissionFor(100, 150)).toBe(100);
+  it("keeps a proportional share on a split, rounded down", () => {
+    expect(commissionFor(order, 1200)).toBe(50);
+    expect(commissionFor(order, 1000)).toBe(41);
+  });
+});
+
+describe("buyer prices", () => {
+  it("adds 5% to the seller's price, rounded up to whole shillings", () => {
+    expect(markupPercent({})).toBe(5);
+    expect(buyerPrice(2000, 5)).toBe(2100);
+    expect(buyerPrice(999, 5)).toBe(1049);
+    expect(markupFor(3500, 5)).toBe(175);
+    expect(buyerPrice(2000, 0)).toBe(2000);
+  });
+
+  it("falls back to 5% on a bad setting", () => {
+    expect(markupPercent({ PLATFORM_MARKUP_PERCENT: "abc" })).toBe(5);
+    expect(markupPercent({ PLATFORM_MARKUP_PERCENT: "2.5" })).toBe(2.5);
+  });
+
+  it("turns buyer price filters into seller price bounds", () => {
+    for (const kes of [1, 100, 1049, 1050, 2100, 2101, 99999]) {
+      const lo = sellerPriceAtLeast(kes, 5);
+      expect(buyerPrice(lo, 5)).toBeGreaterThanOrEqual(kes);
+      if (lo > 0) expect(buyerPrice(lo - 1, 5)).toBeLessThan(kes);
+      const hi = sellerPriceAtMost(kes, 5);
+      expect(buyerPrice(hi, 5)).toBeLessThanOrEqual(kes);
+      expect(buyerPrice(hi + 1, 5)).toBeGreaterThan(kes);
+    }
   });
 });
 

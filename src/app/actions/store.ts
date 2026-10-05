@@ -20,6 +20,7 @@ import {
   sniffMimeType,
   sniffVideoType,
 } from "@/lib/storage";
+import { buyerPrice } from "@/lib/pricing";
 import type { FormState } from "./types";
 
 const MAX_PHOTOS = 8;
@@ -178,7 +179,7 @@ async function notifyPriceDrop(productId: string, oldPrice: number, newPrice: nu
     savers.map(({ userId }) =>
       notify(userId, {
         title: "Price drop on a saved item",
-        body: `${product.title} is now ${formatKes(newPrice)} (was ${formatKes(oldPrice)}).`,
+        body: `${product.title} is now ${formatKes(buyerPrice(newPrice))} (was ${formatKes(buyerPrice(oldPrice))}).`,
         link: `/products/${productId}`,
       }),
     ),

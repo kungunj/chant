@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { readCart } from "@/lib/cart";
 import { prisma } from "@/lib/db";
 import { displayPhone } from "@/lib/format";
+import { buyerPrice } from "@/lib/pricing";
 import { CheckoutForm, type CheckoutStore } from "./CheckoutForm";
 
 export default async function CheckoutPage() {
@@ -23,7 +24,7 @@ export default async function CheckoutPage() {
       fargoFeeKes: p.store.fargoFeeKes,
       items: [],
     };
-    entry.items.push({ id: p.id, title: p.title, quantity: cart[p.id], lineKes: p.priceKes * cart[p.id] });
+    entry.items.push({ id: p.id, title: p.title, quantity: cart[p.id], lineKes: buyerPrice(p.priceKes) * cart[p.id] });
     stores.set(p.storeId, entry);
   }
 

@@ -48,6 +48,18 @@ export default async function SellerOrderPage({ params }: { params: Promise<{ id
           <span>Paid via M-Pesa {order.payment?.mpesaReceipt && `(${order.payment.mpesaReceipt})`}</span>
           <span>{formatKes(order.totalKes)}</span>
         </div>
+        {order.markupKes > 0 && (
+          <>
+            <div className="flex justify-between p-3 text-stone-600">
+              <span>SparesHub fee (kept when the buyer confirms delivery)</span>
+              <span>−{formatKes(order.markupKes)}</span>
+            </div>
+            <div className="flex justify-between p-3 font-semibold">
+              <span>You receive</span>
+              <span>{formatKes(order.totalKes - order.markupKes)}</span>
+            </div>
+          </>
+        )}
       </div>
 
       <EscrowPanel order={order} role="seller" />

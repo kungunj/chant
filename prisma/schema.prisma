@@ -92,7 +92,8 @@ enum NameCheckStatus {
 
 enum PaymentPurpose {
   ORDER
-  /// KSh 1 paid by an individual seller so Safaricom tells us the M-Pesa account name
+  /// Seller registration fee (KSh 100, or KSh 1 to re-check a different M-Pesa line). For individual
+  /// sellers Safaricom also tells us the payer's M-Pesa account name, which is compared with the ID.
   NAME_CHECK
 }
 
@@ -218,12 +219,14 @@ model Store {
   idNamesSource String?
 
   /// Individual sellers: the M-Pesa line whose registered name must match their ID
-  mpesaPhone         String?
-  mpesaName          String?
-  mpesaNameStatus    NameCheckStatus @default(NOT_CHECKED)
-  mpesaNameCheckedAt DateTime?
-  nameCheckPaymentId String?         @unique
-  nameCheckPayment   Payment?        @relation("NameCheck", fields: [nameCheckPaymentId], references: [id])
+  mpesaPhone            String?
+  mpesaName             String?
+  mpesaNameStatus       NameCheckStatus @default(NOT_CHECKED)
+  mpesaNameCheckedAt    DateTime?
+  nameCheckPaymentId    String?         @unique
+  nameCheckPayment      Payment?        @relation("NameCheck", fields: [nameCheckPaymentId], references: [id])
+  /// When the seller paid the registration fee (REGISTRATION_FEE_KES) by M-Pesa
+  registrationFeePaidAt DateTime?
 
   /// Registered business, checked against the Registrar (BRS) before approval
   businessType      BusinessType?
@@ -326,7 +329,9 @@ model Order {
   /// Set once the order is paid; money is only released to the seller on buyer confirmation
   escrowStatus      EscrowStatus?
   escrowSettledAt   DateTime?
-  /// Platform commission kept when escrow is released to the seller
+  /// SparesHub's markup (PLATFORM_MARKUP_PERCENT of the seller's prices) included in totalKes
+  markupKes         Int           @default(0)
+  /// Part of the markup SparesHub kept when escrow was settled (none if the buyer was refunded)
   commissionKes     Int           @default(0)
   /// Courier fee included in totalKes
   deliveryFeeKes    Int           @default(0)

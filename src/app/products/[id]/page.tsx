@@ -12,6 +12,7 @@ import { storeRating } from "@/lib/reviews";
 import { categoryLabels, conditionLabels, formatKes } from "@/lib/format";
 import { hasNoFaults } from "@/lib/listing";
 import { isStaff } from "@/lib/roles";
+import { buyerPrice } from "@/lib/pricing";
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -56,7 +57,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           item={{
             id: product.id,
             title: product.title,
-            priceKes: product.priceKes,
+            priceKes: buyerPrice(product.priceKes),
             image: product.imageUrls[0] ?? null,
           }}
         />
@@ -71,7 +72,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             </Link>
           </p>
           <h1 className="text-2xl font-bold">{product.title}</h1>
-          <p className="mt-2 text-2xl font-semibold text-accent-700">{formatKes(product.priceKes)}</p>
+          <p className="mt-2 text-2xl font-semibold text-accent-700">{formatKes(buyerPrice(product.priceKes))}</p>
         </div>
 
         <dl className="card grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 p-4 text-sm">

@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { deliveryFee } from "@/lib/delivery";
 import { stkPush } from "@/lib/mpesa";
 import { normalizeKenyanPhone } from "@/lib/phone";
+import { buyerPrice, markupFor } from "@/lib/pricing";
 import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 import type { FormState } from "./types";
 
@@ -73,8 +74,9 @@ export async function placeOrder(_: FormState, formData: FormData): Promise<Form
     if (fee === null) return { error: `${items[0].store.name} does not ship with the courier you picked` };
     fees.set(storeId, fee);
   }
-  const total =
-    products.reduce((sum, p) => sum + p.priceKes * cart[p.id], 0) + [...fees.values()].reduce((a, b) => a + b, 0);
+  // Buyers pay the seller's price plus SparesHub's markup; the seller gets their own price on release.
+  const lineKes = (p: (typeof products)[number]) => buyerPrice(p.priceKes) * cart[p.id];
+  const total = products.reduce((sum, p) => sum + lineKes(p), 0) + [...fees.values()].reduce((a, b) => a + b, 0);
 
   const payment = await prisma.$transaction(async (tx) => {
     const payment = await tx.payment.create({ data: { userId: user.id, amountKes: total, phone } });
@@ -87,9 +89,10 @@ export async function placeOrder(_: FormState, formData: FormData): Promise<Form
           storeId,
           paymentId: payment.id,
           deliveryFeeKes: fees.get(storeId)!,
-          totalKes: items.reduce((sum, p) => sum + p.priceKes * cart[p.id], 0) + fees.get(storeId)!,
+          markupKes: items.reduce((sum, p) => sum + markupFor(p.priceKes) * cart[p.id], 0),
+          totalKes: items.reduce((sum, p) => sum + lineKes(p), 0) + fees.get(storeId)!,
           items: {
-            create: items.map((p) => ({ productId: p.id, title: p.title, priceKes: p.priceKes, quantity: cart[p.id] })),
+            create: items.map((p) => ({ productId: p.id, title: p.title, priceKes: buyerPrice(p.priceKes), quantity: cart[p.id] })),
           },
         },
       });

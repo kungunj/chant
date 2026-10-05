@@ -61,3 +61,13 @@ describe("listing condition details", () => {
     expect(sniffVideoType(new Uint8Array([0xff, 0xd8, 0xff]))).toBeNull();
   });
 });
+
+describe("seller registration fee", () => {
+  it("is KSh 100 unless configured", async () => {
+    const { registrationFeeKes } = await import("@/lib/name-check");
+    expect(registrationFeeKes({})).toBe(100);
+    expect(registrationFeeKes({ SELLER_REGISTRATION_FEE_KES: "250" })).toBe(250);
+    expect(registrationFeeKes({ SELLER_REGISTRATION_FEE_KES: "0" })).toBe(100);
+    expect(registrationFeeKes({ SELLER_REGISTRATION_FEE_KES: "abc" })).toBe(100);
+  });
+});

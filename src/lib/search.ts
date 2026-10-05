@@ -1,4 +1,5 @@
 import type { Condition, DeviceCategory, Prisma } from "@prisma/client";
+import { sellerPriceAtLeast, sellerPriceAtMost } from "./pricing";
 
 /** Normalise a part number so "BN44-00807A", "bn44 00807a" and "BN4400807A" all match. */
 export function normalizePartNumber(value: string): string {
@@ -27,9 +28,10 @@ export function buildProductWhere(params: SearchParams): Prisma.ProductWhereInpu
   if (params.storeId) where.storeId = params.storeId;
   if (params.withVideo) where.videoUrl = { not: null };
   if (params.minPriceKes || params.maxPriceKes) {
+    // Buyers filter on the prices they see, which include SparesHub's markup.
     where.priceKes = {
-      ...(params.minPriceKes ? { gte: params.minPriceKes } : {}),
-      ...(params.maxPriceKes ? { lte: params.maxPriceKes } : {}),
+      ...(params.minPriceKes ? { gte: sellerPriceAtLeast(params.minPriceKes) } : {}),
+      ...(params.maxPriceKes ? { lte: sellerPriceAtMost(params.maxPriceKes) } : {}),
     };
   }
 

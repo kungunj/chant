@@ -3,6 +3,7 @@ import { updateCartItem } from "@/app/actions/cart";
 import { readCart } from "@/lib/cart";
 import { prisma } from "@/lib/db";
 import { formatKes } from "@/lib/format";
+import { buyerPrice } from "@/lib/pricing";
 
 export default async function CartPage() {
   const cart = await readCart();
@@ -10,7 +11,7 @@ export default async function CartPage() {
     where: { id: { in: Object.keys(cart) }, deletedAt: null, store: { status: "APPROVED" } },
     include: { store: { select: { name: true } } },
   });
-  const total = products.reduce((sum, p) => sum + p.priceKes * cart[p.id], 0);
+  const total = products.reduce((sum, p) => sum + buyerPrice(p.priceKes) * cart[p.id], 0);
 
   if (products.length === 0) {
     return (
@@ -37,7 +38,7 @@ export default async function CartPage() {
               <input name="quantity" type="number" min={0} max={99} defaultValue={cart[p.id]} className="input w-20" />
               <button className="btn-secondary">Update</button>
             </form>
-            <p className="w-28 text-right font-semibold">{formatKes(p.priceKes * cart[p.id])}</p>
+            <p className="w-28 text-right font-semibold">{formatKes(buyerPrice(p.priceKes) * cart[p.id])}</p>
             <form action={updateCartItem}>
               <input type="hidden" name="productId" value={p.id} />
               <input type="hidden" name="quantity" value="0" />

@@ -13,18 +13,23 @@ export default async function PaymentPage({ params }: { params: Promise<{ id: st
   const user = await requireUser(`/payments/${id}`);
   const payment = await prisma.payment.findFirst({
     where: { id, userId: user.id },
-    include: { orders: { include: { store: { select: { name: true } } } } },
+    include: {
+      orders: { include: { store: { select: { name: true } } } },
+      nameCheckFor: { select: { status: true, sellerType: true, mpesaNameStatus: true } },
+    },
   });
   if (!payment) notFound();
   const nameCheck = payment.purpose === "NAME_CHECK";
+  const seller = payment.nameCheckFor;
 
   return (
     <div className="card mx-auto max-w-md space-y-4 p-6 text-center">
-      <h1 className="text-xl font-semibold">{nameCheck ? "Confirm your M-Pesa name" : "M-Pesa payment"}</h1>
+      <h1 className="text-xl font-semibold">{nameCheck ? "Seller registration" : "M-Pesa payment"}</h1>
       {nameCheck && (
         <p className="text-sm text-stone-600">
-          Approve the KSh 1 prompt on your phone. Safaricom then tells us the name your M-Pesa line is registered
-          in, and we check it matches your ID.
+          Approve the M-Pesa prompt on your phone.
+          {seller?.sellerType === "INDIVIDUAL" &&
+            " Safaricom then tells us the name your line is registered in, and we check it matches your ID."}
         </p>
       )}
       <p className="text-3xl font-bold">{formatKes(payment.amountKes)}</p>
@@ -46,10 +51,21 @@ export default async function PaymentPage({ params }: { params: Promise<{ id: st
 
       {payment.status === "SUCCESS" && nameCheck && (
         <div className="space-y-3 text-sm">
-          <p className="text-stone-600">
-            Thanks. A SparesHub moderator will review your ID and M-Pesa name, and your listings go live once you are
-            approved.
-          </p>
+          {seller?.status === "APPROVED" ? (
+            <p className="rounded-md bg-green-50 p-3 font-medium text-green-800">
+              Your details match. Your store is approved and your listings are live.
+            </p>
+          ) : seller?.sellerType === "INDIVIDUAL" && seller.mpesaNameStatus === "PENDING" ? (
+            <p className="text-stone-600">
+              Payment received. We&apos;re checking your M-Pesa name against your ID, and your store is approved
+              automatically if they match.
+            </p>
+          ) : (
+            <p className="text-stone-600">
+              Payment received. Your details didn&apos;t match automatically, so a SparesHub moderator will review
+              them. Your listings go live once you are approved.
+            </p>
+          )}
           <Link href="/dashboard" className="btn-primary">Back to my listings</Link>
         </div>
       )}

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireStore } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { markupPercent } from "@/lib/pricing";
 import { ProductForm } from "../../ProductForm";
 
 export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
@@ -11,7 +12,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
   return (
     <div className="card mx-auto max-w-2xl p-6">
       <h1 className="mb-4 text-xl font-semibold">Edit product</h1>
-      <ProductForm product={product} />
+      <ProductForm product={product} markupPercent={markupPercent()} />
     </div>
   );
 }

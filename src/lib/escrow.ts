@@ -4,15 +4,19 @@ import { notify } from "./notify";
 
 type Tx = Prisma.TransactionClient;
 
-/** Commission SparesHub keeps from the seller's share, e.g. PLATFORM_COMMISSION_PERCENT=5. */
-export function commissionFor(amountKes: number, percent = Number(process.env.PLATFORM_COMMISSION_PERCENT ?? 0)) {
-  if (!Number.isFinite(percent) || percent <= 0) return 0;
-  return Math.floor((amountKes * Math.min(percent, 100)) / 100);
+/**
+ * The part of the order's markup SparesHub keeps: all of it when the seller gets the whole order,
+ * none when the buyer is refunded in full, and a proportional share when a dispute splits the money.
+ */
+export function commissionFor(order: { totalKes: number; markupKes: number }, sellerShareKes: number) {
+  if (order.totalKes <= 0 || sellerShareKes <= 0) return 0;
+  if (sellerShareKes >= order.totalKes) return order.markupKes;
+  return Math.floor((order.markupKes * sellerShareKes) / order.totalKes);
 }
 
 /**
  * Splits an escrowed order between buyer and seller. `refundKes` goes back to the buyer's wallet,
- * the rest (minus commission) to the seller's wallet. Returns false if the escrow was already
+ * the rest (minus SparesHub's markup) to the seller's wallet. Returns false if the escrow was already
  * settled, so it is safe against double clicks and races.
  */
 export async function settleEscrow(
@@ -24,7 +28,7 @@ export async function settleEscrow(
 
   const refund = Math.max(0, Math.min(order.totalKes, Math.floor(params.refundKes)));
   const sellerShare = order.totalKes - refund;
-  const commission = commissionFor(sellerShare);
+  const commission = commissionFor(order, sellerShare);
   const escrowStatus = refund === 0 ? "RELEASED" : refund === order.totalKes ? "REFUNDED" : "SPLIT";
 
   const claimed = await tx.order.updateMany({
@@ -45,7 +49,7 @@ export async function settleEscrow(
         type: "ESCROW_RELEASE",
         amountKes: sellerShare - commission,
         orderId: order.id,
-        note: commission > 0 ? `${params.note} (commission KSh ${commission})` : params.note,
+        note: commission > 0 ? `${params.note} (SparesHub fee KSh ${commission})` : params.note,
       },
     });
   }

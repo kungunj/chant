@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Product } from "@prisma/client";
 import { conditionLabels, formatKes } from "@/lib/format";
+import { buyerPrice } from "@/lib/pricing";
 
 export function ProductCard({ product, storeName }: { product: Product; storeName?: string }) {
   return (
@@ -19,7 +20,7 @@ export function ProductCard({ product, storeName }: { product: Product; storeNam
       <div className="flex flex-1 flex-col gap-1 p-3">
         <h3 className="line-clamp-2 text-sm font-medium group-hover:text-brand-600">{product.title}</h3>
         {product.partNumber && <p className="font-mono text-xs text-stone-500">P/N {product.partNumber}</p>}
-        <p className="mt-auto pt-1 font-semibold text-accent-700">{formatKes(product.priceKes)}</p>
+        <p className="mt-auto pt-1 font-semibold text-accent-700">{formatKes(buyerPrice(product.priceKes))}</p>
         <div className="flex items-center justify-between text-xs text-stone-500">
           <span>{conditionLabels[product.condition]}</span>
           {storeName && <span className="truncate pl-2">{storeName}</span>}

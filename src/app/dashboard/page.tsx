@@ -3,6 +3,9 @@ import { deleteProduct } from "@/app/actions/store";
 import { requireStore } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { conditionLabels, formatKes, orderStatusLabels } from "@/lib/format";
+import { retryNameCheck } from "@/app/actions/verification";
+import { SubmitButton } from "@/components/SubmitButton";
+import { buyerPrice } from "@/lib/pricing";
 import { DeleteProductButton } from "./DeleteProductButton";
 
 export default async function DashboardPage() {
@@ -46,8 +49,28 @@ export default async function DashboardPage() {
           )}
           {store.status === "PENDING_REVIEW" && (
             <>
-              <strong>Documents received.</strong> A SparesHub moderator is reviewing your store. Your products go
-              live as soon as it is approved.
+              {store.registrationFeePaidAt ? (
+                <>
+                  <strong>Documents received.</strong> A SparesHub moderator is reviewing your store. Your products
+                  go live as soon as it is approved.
+                </>
+              ) : (
+                <form action={retryNameCheck} className="flex flex-wrap items-center gap-2">
+                  <span>
+                    <strong>Pay the registration fee</strong> to finish signing up.
+                  </span>
+                  <input
+                    name="mpesaPhone"
+                    aria-label="M-Pesa number"
+                    defaultValue={store.mpesaPhone ? `0${store.mpesaPhone.slice(3)}` : ""}
+                    placeholder="0712 345 678"
+                    className="input w-40"
+                  />
+                  <SubmitButton className="btn-mpesa" pendingText="Sending M-Pesa prompt…">
+                    Pay by M-Pesa
+                  </SubmitButton>
+                </form>
+              )}
             </>
           )}
           {store.status === "REJECTED" && (
@@ -103,7 +126,7 @@ export default async function DashboardPage() {
                   <th className="p-3">Product</th>
                   <th className="p-3">Part no.</th>
                   <th className="p-3">Condition</th>
-                  <th className="p-3 text-right">Price</th>
+                  <th className="p-3 text-right">Your price</th>
                   <th className="p-3 text-right">Stock</th>
                   <th className="p-3" />
                 </tr>
@@ -116,7 +139,10 @@ export default async function DashboardPage() {
                     </td>
                     <td className="p-3 font-mono text-xs">{p.partNumber ?? "—"}</td>
                     <td className="p-3">{conditionLabels[p.condition]}</td>
-                    <td className="p-3 text-right">{formatKes(p.priceKes)}</td>
+                    <td className="p-3 text-right">
+                      {formatKes(p.priceKes)}
+                      <span className="block text-xs text-stone-500">buyers see {formatKes(buyerPrice(p.priceKes))}</span>
+                    </td>
                     <td className="p-3 text-right">{p.stock}</td>
                     <td className="p-3">
                       <div className="flex justify-end gap-2">

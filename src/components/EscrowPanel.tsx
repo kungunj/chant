@@ -24,12 +24,12 @@ export function EscrowPanel({ order, role }: { order: Order & { dispute: Dispute
         <p className="text-stone-600">
           {role === "buyer"
             ? `Your ${formatKes(order.totalKes)} is held by SparesHub. It is only released to the seller when you confirm you received the item.`
-            : `The buyer's ${formatKes(order.totalKes)} is held by SparesHub and moves to your wallet when they confirm delivery.`}
+            : `The buyer's ${formatKes(order.totalKes)} is held by SparesHub. ${formatKes(order.totalKes - order.markupKes)} moves to your wallet when they confirm delivery.`}
         </p>
       )}
       {!held && order.escrowStatus === "RELEASED" && (
         <p className="text-stone-600">
-          Released to the seller{order.commissionKes > 0 && ` (SparesHub commission ${formatKes(order.commissionKes)})`}.
+          Released to the seller{order.commissionKes > 0 && ` (SparesHub fee ${formatKes(order.commissionKes)})`}.
         </p>
       )}
       {!held && order.dispute?.refundKes != null && order.dispute.refundKes > 0 && (

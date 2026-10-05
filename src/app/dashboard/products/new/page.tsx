@@ -1,4 +1,5 @@
 import { requireStore } from "@/lib/auth";
+import { markupPercent } from "@/lib/pricing";
 import { ProductForm } from "../ProductForm";
 
 export default async function NewProductPage() {
@@ -6,7 +7,7 @@ export default async function NewProductPage() {
   return (
     <div className="card mx-auto max-w-2xl p-6">
       <h1 className="mb-4 text-xl font-semibold">Post a product</h1>
-      <ProductForm />
+      <ProductForm markupPercent={markupPercent()} />
     </div>
   );
 }

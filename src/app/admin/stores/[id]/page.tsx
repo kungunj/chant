@@ -61,6 +61,8 @@ export default async function AdminStorePage({ params }: { params: Promise<{ id:
         <dd>{store.kraPin ?? "—"}</dd>
         <dt className="text-stone-500">Location</dt>
         <dd>{store.location ?? "—"}</dd>
+        <dt className="text-stone-500">Registration fee</dt>
+        <dd>{store.registrationFeePaidAt ? `Paid ${store.registrationFeePaidAt.toLocaleDateString("en-KE")}` : "Not paid"}</dd>
         <dt className="text-stone-500">Activity</dt>
         <dd>
           {store._count.products} products, {store._count.orders} orders
@@ -69,7 +71,7 @@ export default async function AdminStorePage({ params }: { params: Promise<{ id:
           <>
             <dt className="text-stone-500">Last review</dt>
             <dd>
-              {store.reviewedAt.toLocaleDateString("en-KE")} by {store.reviewedBy?.name}
+              {store.reviewedAt.toLocaleDateString("en-KE")} by {store.reviewedBy?.name ?? "SparesHub (automatic)"}
               {store.reviewNote && `: ${store.reviewNote}`}
             </dd>
           </>

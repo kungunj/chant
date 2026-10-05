@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 import { checkStoreRegistration, getRegistryProvider } from "@/lib/business-registry";
 import { settleEscrow } from "@/lib/escrow";
 import { nameCheckStatusLabels, registryStatusLabels } from "@/lib/format";
-import { setIdNamesByModerator } from "@/lib/name-check";
+import { autoApproveIfVerified, setIdNamesByModerator } from "@/lib/name-check";
 import { notify } from "@/lib/notify";
 import type { FormState } from "./types";
 
@@ -26,6 +26,9 @@ export async function reviewStore(_: FormState, formData: FormData): Promise<For
   if (decision === "APPROVE") {
     const current = await prisma.store.findUnique({ where: { id: storeId } });
     const ok = (s: string) => s === "MATCHED" || s === "MANUALLY_VERIFIED";
+    if (current?.status === "PENDING_REVIEW" && !current.registrationFeePaidAt) {
+      return { error: "The seller hasn't paid the registration fee yet" };
+    }
     if (current?.status === "PENDING_REVIEW" && current.sellerType === "BUSINESS" && !ok(current.registryStatus)) {
       return { error: "Confirm the business with the Registrar first (re-check it, or record your eCitizen search)" };
     }
@@ -165,8 +168,9 @@ export async function recheckRegistry(_: FormState, formData: FormData): Promise
   const storeId = String(formData.get("storeId") ?? "");
   if (!getRegistryProvider()) return { error: "No registry provider is set up. Check the business on eCitizen and record it below." };
   const status = await checkStoreRegistration(storeId);
+  const approved = await autoApproveIfVerified(storeId);
   revalidatePath(`/admin/stores/${storeId}`);
-  return { ok: registryStatusLabels[status] };
+  return { ok: approved ? `${registryStatusLabels[status]}. Store approved automatically.` : registryStatusLabels[status] };
 }
 
 export async function markRegistryVerified(_: FormState, formData: FormData): Promise<FormState> {
@@ -207,5 +211,5 @@ export async function setIdNames(_: FormState, formData: FormData): Promise<Form
   if (names.split(" ").length < 2) return { error: "Type all the names exactly as they appear on the ID photo" };
   const status = await setIdNamesByModerator(storeId, names);
   revalidatePath(`/admin/stores/${storeId}`);
-  return { ok: status ? nameCheckStatusLabels[status] : "Saved. The check runs once the seller pays the KSh 1 prompt." };
+  return { ok: status ? nameCheckStatusLabels[status] : "Saved. The check runs once the seller pays the registration fee." };
 }

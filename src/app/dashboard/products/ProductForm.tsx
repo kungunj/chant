@@ -5,9 +5,11 @@ import { useState } from "react";
 import { saveProduct } from "@/app/actions/store";
 import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
-import { categoryLabels, conditionLabels } from "@/lib/format";
+import { categoryLabels, conditionLabels, formatKes } from "@/lib/format";
+import { buyerPrice } from "@/lib/pricing";
 
-export function ProductForm({ product }: { product?: Product }) {
+export function ProductForm({ product, markupPercent }: { product?: Product; markupPercent: number }) {
+  const [price, setPrice] = useState<number>(product?.priceKes ?? 0);
   const [condition, setCondition] = useState<string>(product?.condition ?? "USED_WORKING");
   const [videoNote, setVideoNote] = useState<string | null>(null);
   const used = condition !== "NEW_SPARE";
@@ -90,7 +92,7 @@ export function ProductForm({ product }: { product?: Product }) {
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="priceKes">
-            Price (KSh)
+            Your price (KSh)
           </label>
           <input
             id="priceKes"
@@ -99,9 +101,15 @@ export function ProductForm({ product }: { product?: Product }) {
             min={1}
             step={1}
             defaultValue={product?.priceKes}
+            onChange={(e) => setPrice(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
             required
             className="input"
           />
+          <p className="mt-1 text-xs text-stone-500" id="buyer-price">
+            {price > 0
+              ? `Buyers see ${formatKes(buyerPrice(price, markupPercent))}. You receive ${formatKes(price)} when they confirm delivery.`
+              : `Buyers see your price plus SparesHub's ${markupPercent}% fee. You receive your full price.`}
+          </p>
         </div>
         <div>
           <label className="label" htmlFor="stock">
